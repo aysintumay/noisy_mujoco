@@ -1,15 +1,32 @@
 # noisy_mujoco
 Noisy MuJoCo environment generation for offline RL models.
 
-## create noisy dataset with 1M samples with action and transition noise.
-```
-python create_dataset.py --env_name Hopper-v2 --action --transition --num_samples 1000000
-```
-
 ## create noisy dataset with 1M samples with action noise.
 ```
-python create_dataset.py --env_name Hopper-v2 --action --num_samples 1000000
+python create_dataset.py --num_samples 2200 --action --noise_rate_action 1 --scale_action 0.1
 ```
+
+## create noisy dataset with ~1M samples with action and transition noise.
+```
+python create_dataset.py --num_samples 2200 --action --transition --noise_rate_action 1 --scale_action 0.1 --noise_rate_transition 1 --scale_transition 0.1
+```
+
+## create noisy dataset with ~1M samples with transition noise.
+```
+python create_dataset.py --num_samples 2200 --transition --noise_rate_transition 1 --scale_transition 0.1
+```
+# Evaluate
+
+## evaluate D4RL expert policy
+```
+python evaluate_policy.py --episodes 100 --action --transition --noise_rate 0.5 --scale 0.001 --farama
+```
+
+## evaluate our expert policy
+```
+python evaluate_policy.py --episodes 100 --action --transition --noise_rate 0.5 --scale 0.001
+```
+
 
 ## train policy
 

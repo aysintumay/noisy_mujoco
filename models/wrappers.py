@@ -100,7 +100,7 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
         >>> wrapped_env = RandomNormalNoisyObservation(env, noise_rate=0.1, loc=0.0, scale=0.1)
     """
 
-    def __init__(self, env, noise_rate=0.01, loc=0.0, scale=0.01):
+    def __init__(self, env, noise_rate_action=0.01, loc=0.0, scale_action=0.01, noise_rate_transition=0.01, scale_transition=0.01):
         """Initializes the :class:`RandomNormalNoisyObservation` wrapper.
 
         Args:
@@ -113,19 +113,22 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
                 Must be non-negative. Defaults to 0.01.
         """
         super().__init__(env)
-        self.noise_rate = noise_rate
+        self.noise_rate_action_ = noise_rate_action
+        self.noise_rate_transition_ = noise_rate_transition
         self.added_noise = True
         self.loc = loc
-        self.scale = scale
+        self.scale_action_ = scale_action
+        self.scale_transition_ = scale_transition
 
     def observation(self, observation):
         """Modify the action by adding or multiplying noise with some probability."""
-        if np.random.rand() <= self.noise_rate:
-            noise = np.random.normal(loc=self.loc, scale=self.scale, size=observation.shape)
+        if np.random.rand() <= self.noise_rate_transition_:
+            noise_obs = np.random.normal(loc=self.loc, scale=self.scale_transition_, size=observation.shape)
+
             if self.added_noise:
-                observation = observation + noise
+                observation = observation + noise_obs
             else:
-                observation = observation * noise
+                observation = observation * noise_obs
             # Clip to ensure action remains valid
             observation = np.clip(observation, self.env.observation_space.low, self.env.observation_space.high)
         return observation
@@ -133,12 +136,13 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
         
     def action(self, action):
         """Modify the action by adding or multiplying noise with some probability."""
-        if np.random.rand() <= self.noise_rate:
-            noise = np.random.normal(loc=self.loc, scale=self.scale, size=action.shape)
+        if np.random.rand() <= self.noise_rate_action_:
+            noise_act = np.random.normal(loc=self.loc, scale=self.scale_action_, size=action.shape)
+
             if self.added_noise:
-                action = action + noise
+                action = action + noise_act
             else:
-                action = action * noise
+                action = action * noise_act
             # Clip to ensure action remains valid
             action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
         return action

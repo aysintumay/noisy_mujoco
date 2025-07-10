@@ -43,10 +43,10 @@ def load_policy_farama(env, args):
         filename=f"{args.env_name.split('-')[0].lower()}-v5-{algo.upper()}-expert.zip",
     )
     if (args.env_name.split('-')[0] == "Hopper") or (args.env_name.split('-')[0] == "Walker2d"):
-        model = SAC.load(model_checkpoint, env=env, custom_objects={'observation_space': env.observation_space, 'action_space': env.action_space})
+        model = SAC.load(model_checkpoint, env=env, custom_objects={'observation_space': env.observation_space, 'action_space': env.action_space}, device = f"cuda:{args.devid}")
 
     elif args.env_name.split('-')[0] == "HalfCheetah":
-        model = TQC.load(model_checkpoint)
+        model = TQC.load(model_checkpoint, device = f"cuda:{args.devid}")
 
     else:
         raise ValueError("Unsupported environment for noisy datasets creation.")
@@ -57,10 +57,10 @@ def load_policy(args):
     
   
     if (args.env_name.split('-')[0] == "Hopper") or (args.env_name.split('-')[0] == "Walker2d"):
-         model = SAC.load(os.path.join(args.log_dir, 'expert_models', f"sac_{args.env_name.split('-')[0]}"))
+         model = SAC.load(os.path.join(args.log_dir, 'expert_models', f"sac_{args.env_name.split('-')[0]}"), device = f"cuda:{args.devid}")
 
     elif args.env_name.split('-')[0] == "HalfCheetah":
-        model = TQC.load(os.path.join(args.log_dir, 'expert_models', f"tqc_{args.env_name.split('-')[0]}"))
+        model = TQC.load(os.path.join(args.log_dir, 'expert_models', f"tqc_{args.env_name.split('-')[0]}"), device = f"cuda:{args.devid}")
 
     else:
         raise ValueError("Unsupported environment for noisy datasets creation.")
@@ -72,9 +72,9 @@ def main(noisy_env, model, args):
     if args.action and not args.transition:
         # noisy_env = RandomNormalNoisyActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
         if args.farama:
-            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_action_noisy_added_{args.scale}_{args.noise_rate}.pkl")
+            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_action_noisy_{args.scale}_{args.noise_rate}.pkl")
         else:
-            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_action_noisy_added_{args.scale}_{args.noise_rate}.pkl")   
+            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_action_noisy_{args.scale}_{args.noise_rate}.pkl")   
         print(f"Creating dataset with noisy actions in {logdir}")
     elif args.transition and not args.action:
         # noisy_env = RandomNormalNoisyTransitions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
@@ -95,7 +95,6 @@ def main(noisy_env, model, args):
     else:
         print('Expert dataset is being created!')
         logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
-        # noisy_env = env
     
     
     observation, info = env.reset(seed = args.seed)
@@ -122,11 +121,10 @@ def main(noisy_env, model, args):
             observation, info = noisy_env.reset(seed=42)
             num_samples += 1
             seed += 1
-            if (1000000 - steps) < env.spec.max_episode_steps:  # trim trailing non-full episodes
+            if (args.dataset_size - steps) < env.spec.max_episode_steps:  # trim trailing non-full episodes
                 print(f'endded after {num_samples} steps')
                 break
 
-            # break #get one full episode only
         
     noisy_data = {
                 key: np.concatenate(noisy_data[key], axis=0)
@@ -143,46 +141,6 @@ def main(noisy_env, model, args):
     print(f"Dataset created with {args.num_samples} samples and saved to {logdir}")
 
 
-def evaluate_expert(env, model, args):
-    print(env)
-    
-    obs, _ = env.reset(seed=42)
-    num_episodes = 0
-    eval_ep_info_buffer = []
-    episode_reward, episode_length = 0, 0
-
-    
-    while num_episodes <= args.episodes:
-        ( action, _ )= model.predict(obs, deterministic=True)
-        if args.action:
-            action = env.action(action)
-        next_obs, reward, terminal, truncated, _ = env.step(action) 
-        episode_reward += reward
-        episode_length += 1
-
-        obs = next_obs
-
-        if terminal or truncated:
-            eval_ep_info_buffer.append(
-                {"episode_reward": episode_reward, "episode_length": episode_length}
-            )
-
-            num_episodes +=1
-            episode_reward, episode_length = 0, 0
-            obs,_ = env.reset(seed=42)
-    df =  {
-        "eval/episode_reward": [ep_info["episode_reward"] for ep_info in eval_ep_info_buffer],
-        "eval/episode_length": [ep_info["episode_length"] for ep_info in eval_ep_info_buffer]
-    }
-
-    avg_r = np.mean(df["eval/episode_reward"])
-    avg_l = np.mean(df["eval/episode_length"])
-    print(f"Average episode reward: {avg_r}, Average episode length: {avg_l}")
-
-    return avg_r, avg_l
-    
-    
-
 
 
 
@@ -191,10 +149,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--env_name", type=str, default="Hopper-v3")
-    parser.add_argument("--num_samples", type=int, default=1000, help="Number of samples to create in the dataset")
-    parser.add_argument("--noise_rate", type=float, help="Portion of samples to be noisy woth probability", default=0.01)
+    parser.add_argument("--dataset_size", type=int, default=1000000, help="Number of samples to create in the dataset")
+    parser.add_argument("--num_samples", type=int, default=1000, help="Number of episodes to create in the dataset")
+    parser.add_argument("--noise_rate_action", type=float, help="Portion of action to be noisy with probability", default=0.01)
+    parser.add_argument("--noise_rate_transition", type=float, help="Portion of transitions to be noisy with probability", default=0.01)
     parser.add_argument("--loc", type=float, default=0.0, help="Mean of the noise distribution")
-    parser.add_argument("--scale", type=float, default=0.001, help="Standard deviation of the noise distribution")
+    parser.add_argument("--scale_action", type=float, default=0.001, help="Standard deviation of the action noise distribution")
+    parser.add_argument("--scale_transition", type=float, default=0.001, help="Standard deviation of the transition noise distribution")
     parser.add_argument("--action", action='store_true', help="Create dataset with noisy actions")
     parser.add_argument("--transition", action='store_true', help="Create dataset with noisy transitions")
     parser.add_argument("--seed", type=int, default=42)
@@ -209,13 +170,14 @@ if __name__ == "__main__":
 
     if args.action and not args.transition:
         print("Environment with noisy actions")
-        noisy_env = RandomNormalNoisyActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        noisy_env = RandomNormalNoisyActions(env=env, noise_rate=args.noise_rate_action, loc = args.loc, scale = args.scale_action)
     elif args.transition and not args.action:
         print("Environment with noisy transitions")
-        noisy_env = RandomNormalNoisyTransitions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        noisy_env = RandomNormalNoisyTransitions(env=env, noise_rate=args.noise_rate_transition, loc = args.loc, scale = args.scale_transition)
     elif args.transition and args.action:
         print("Environment with noisy actions and transitions")
-        noisy_env = RandomNormalNoisyTransitionsActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        noisy_env = RandomNormalNoisyTransitionsActions(env=env, noise_rate_action=args.noise_rate_action, loc = args.loc, scale_action = args.scale_action,\
+                                                         noise_rate_action=args.noise_rate_transition, scale_transition = args.scale_transition)
     else:
         print("Environment without noise")
         noisy_env = env
@@ -225,8 +187,8 @@ if __name__ == "__main__":
         model = load_policy_farama(env, args)
     else:
         model = load_policy(args)
-    # main(noisy_env, model,args)
-    evaluate_expert(noisy_env,model, args)
+    main(noisy_env, model,args)
+    # evaluate_expert(noisy_env,model, args)
     env.close()
     print()
 
