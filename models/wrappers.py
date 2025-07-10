@@ -32,7 +32,7 @@ class RandomNormalNoisyActions(gym.ActionWrapper):
         """
         super().__init__(env)
         self.noise_rate = noise_rate
-        self.added_noise = False
+        self.added_noise = True
         self.loc = loc
         self.scale = scale
 
@@ -73,7 +73,7 @@ class RandomNormalNoisyTransitions(gym.ObservationWrapper):
         """
         super().__init__(env)
         self.noise_rate = noise_rate
-        self.added_noise = False
+        self.added_noise = True
         self.loc = loc
         self.scale = scale
 
@@ -114,7 +114,7 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
         """
         super().__init__(env)
         self.noise_rate = noise_rate
-        self.added_noise = False
+        self.added_noise = True
         self.loc = loc
         self.scale = scale
 
