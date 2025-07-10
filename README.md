@@ -1,6 +1,15 @@
 # noisy_mujoco
 Noisy MuJoCo environment generation for offline RL models.
 
+**install the environment**
+cd noisy_mujoco
+conda env create -f environment.yaml
+conda activate mopo
+# Install viskit
+git clone https://github.com/vitchyr/viskit.git
+pip install -e viskit
+pip install -e .
+
 ## create noisy dataset with 1M samples with action noise.
 ```
 python create_dataset.py --num_samples 2200 --action --noise_rate_action 1 --scale_action 0.1
