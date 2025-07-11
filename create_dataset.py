@@ -94,8 +94,11 @@ def main(noisy_env, model, args):
         print(f"Creating dataset with noisy actions and transitions in {logdir}")
     else:
         print('Expert dataset is being created!')
-        logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
-    
+        if args.farama:
+            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
+        else:
+            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
+        
     
     observation, info = env.reset(seed = args.seed)
     seed = args.seed
