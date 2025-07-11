@@ -13,7 +13,7 @@ pip install -e .
 **with our trained expert**
 ## create noiseless expert dataset ~1M samples
 ```
-python create_dataset.py --num_samples 2200 --action --noise_rate_action 1 --scale_action 0.1
+python create_dataset.py --num_samples 2200
 ```
 
 ## create noisy dataset with ~1M samples with action noise.
@@ -35,7 +35,7 @@ python create_dataset.py --num_samples 2200 --transition --noise_rate_transition
 **with D4RL trained expert**
 ## create noiseless expert dataset ~1M samples
 ```
-python create_dataset.py --num_samples 1086 --action --noise_rate_action 1 --scale_action 0.1 --farama
+python create_dataset.py --num_samples 1086 --farama
 ```
 
 ## create noisy dataset with ~1M samples with action noise.
