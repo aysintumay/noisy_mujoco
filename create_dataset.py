@@ -151,7 +151,7 @@ def main(noisy_env, model, args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_name", type=str, default="Hopper-v3")
+    parser.add_argument("--env_name", type=str, default="Hopper-v2")
     parser.add_argument("--dataset_size", type=int, default=1000000, help="Number of samples to create in the dataset")
     parser.add_argument("--num_samples", type=int, default=1000, help="Number of episodes to create in the dataset")
     parser.add_argument("--noise_rate_action", type=float, help="Portion of action to be noisy with probability", default=0.01)
