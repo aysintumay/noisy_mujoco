@@ -60,12 +60,12 @@ python create_dataset.py --num_samples 1086 --transition --noise_rate_transition
 
 ## evaluate D4RL expert policy
 ```
-python evaluate_policy.py --episodes 100 --action --transition --noise_rate 0.5 --scale 0.001 --farama
+python evaluate_policy.py --episodes 100 --action --transition --noise_rate_action 0.5 --noise_rate_transition 0.5 --scale_action 0.001 --scale_transition 0.001 --farama
 ```
 
 ## evaluate our expert policy
 ```
-python evaluate_policy.py --episodes 100 --action --transition --noise_rate 0.5 --scale 0.001
+python evaluate_policy.py --episodes 100 --action --transition --noise_rate_action 0.5 --noise_rate_transition 0.5 --scale_action 0.001 --scale_transition 0.001
 ```
 
 

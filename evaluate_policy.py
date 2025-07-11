@@ -95,13 +95,14 @@ if __name__ == "__main__":
 
     if args.action and not args.transition:
         print("Environment with noisy actions")
-        noisy_env = RandomNormalNoisyActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        noisy_env = RandomNormalNoisyActions(env=env, noise_rate=args.noise_rate_action, loc = args.loc, scale = args.scale_action)
     elif args.transition and not args.action:
         print("Environment with noisy transitions")
-        noisy_env = RandomNormalNoisyTransitions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        noisy_env = RandomNormalNoisyTransitions(env=env, noise_rate=args.noise_rate_transition, loc = args.loc, scale = args.scale_transition)
     elif args.transition and args.action:
         print("Environment with noisy actions and transitions")
-        noisy_env = RandomNormalNoisyTransitionsActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        noisy_env = RandomNormalNoisyTransitionsActions(env=env, noise_rate_action=args.noise_rate_action, loc = args.loc, scale_action = args.scale_action,\
+                                                         noise_rate_transition=args.noise_rate_transition, scale_transition = args.scale_transition)
     else:
         print("Environment without noise")
         noisy_env = env
