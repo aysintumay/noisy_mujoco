@@ -85,13 +85,15 @@ if __name__ == "__main__":
     parser.add_argument("--transition", action='store_true', help="Create dataset with noisy transitions")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--log_dir", type=str, default="/abiomed/intermediate_data_d4rl")
-    parser.add_argument("--devid", type=int, default=3)
+    parser.add_argument("--devid", type=int, default=1)
     parser.add_argument("--episodes", type=int, default=100, help="Number of episodes to evaluate the expert")
     parser.add_argument("--farama", action='store_true', help="Use farama minari expert policy")
 
     args = parser.parse_args()
 
     env = gym.make(args.env_name)
+    args.transition = True
+    args.action = True
 
     if args.action and not args.transition:
         print("Environment with noisy actions")

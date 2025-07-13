@@ -120,6 +120,27 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
         self.scale_action_ = scale_action
         self.scale_transition_ = scale_transition
 
+        
+    def reset(self, **kwargs):
+        """Override the reset method to apply noise to the initial observation."""
+        observation, info = self.env.reset(**kwargs)
+        # Apply noise to the initial observation
+        observation = self.observation(observation)
+        return observation, info
+
+    def step(self, action):
+        """Override the step method to apply noise to the action and transition."""
+        # Apply noise to the action before sending it to the environment
+        action = self.action(action)
+        
+        # Step through the environment
+        next_observation, reward, terminated, truncated, info = self.env.step(action)
+
+        # Apply noise to the observation from the environment
+        next_observation = self.observation(next_observation)
+
+        return next_observation, reward, terminated, truncated, info
+
     def observation(self, observation):
         """Modify the action by adding or multiplying noise with some probability."""
         if np.random.rand() <= self.noise_rate_transition_:
