@@ -92,8 +92,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     env = gym.make(args.env_name)
-    args.transition = True
-    args.action = True
+    # args.transition = True
+    # args.action = True
 
     if args.action and not args.transition:
         print("Environment with noisy actions")
