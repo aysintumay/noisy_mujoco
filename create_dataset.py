@@ -121,7 +121,7 @@ def main(noisy_env, model, args):
         observation = next_observation
         steps +=1
         if terminated or truncated:
-            observation, info = noisy_env.reset(seed=42)
+            observation, info = noisy_env.reset(seed=seed)
             num_samples += 1
             seed += 1
             if (args.dataset_size - steps) < env.spec.max_episode_steps:  # trim trailing non-full episodes
