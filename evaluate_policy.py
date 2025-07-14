@@ -75,7 +75,7 @@ def evaluate_expert(env, model, args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env_name", type=str, default="Hopper-v3")
+    parser.add_argument("--env_name", type=str, default="Hopper-v2")
     parser.add_argument("--noise_rate_action", type=float, help="Portion of action to be noisy with probability", default=0.01)
     parser.add_argument("--noise_rate_transition", type=float, help="Portion of transitions to be noisy with probability", default=0.01)
     parser.add_argument("--loc", type=float, default=0.0, help="Mean of the noise distribution")
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     parser.add_argument("--scale_transition", type=float, default=0.001, help="Standard deviation of the transition noise distribution")
     parser.add_argument("--action", action='store_true', help="Create dataset with noisy actions")
     parser.add_argument("--transition", action='store_true', help="Create dataset with noisy transitions")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=333)
     parser.add_argument("--log_dir", type=str, default="/abiomed/intermediate_data_d4rl")
     parser.add_argument("--devid", type=int, default=1)
     parser.add_argument("--episodes", type=int, default=100, help="Number of episodes to evaluate the expert")

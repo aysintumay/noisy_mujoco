@@ -57,7 +57,7 @@ def load_policy(args):
     
   
     if (args.env_name.split('-')[0] == "Hopper") or (args.env_name.split('-')[0] == "Walker2d"):
-         model = SAC.load(os.path.join(args.log_dir, 'expert_models', f"sac_{args.env_name.split('-')[0]}"), device = f"cuda:{args.devid}")
+         model = SAC.load(os.path.join(args.log_dir, 'expert_models', f"sac_v2_{args.env_name.split('-')[0]}"), device = f"cuda:{args.devid}")
 
     elif args.env_name.split('-')[0] == "HalfCheetah":
         model = TQC.load(os.path.join(args.log_dir, 'expert_models', f"tqc_{args.env_name.split('-')[0]}"), device = f"cuda:{args.devid}")
