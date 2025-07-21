@@ -18,7 +18,7 @@ The RL environment provides a standard gym-like interface for reinforcement lear
 ## Key Features
 
 ### Environment Interface
-- **Observation Space**: Continuous vector of physiological parameters. The features are, in the pickle files of /abiomed/downsampled/` 
+- **Observation Space**: Continuous vector of physiological parameters. The features are, in the pickle files of `/abiomed/downsampled/`.
 ```python
     ['PumpPressure', 'PumpSpeed', 'PumpFLow', 'LVP', 'LVEDP', 'SYSTOLIC','DIASTOLIC','PULSAT','PumpCurrent','Heart Rate', 'ESE_lv','Pump Level']
 ```
