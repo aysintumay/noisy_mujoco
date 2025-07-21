@@ -23,7 +23,7 @@ The RL environment provides a standard gym-like interface for reinforcement lear
     ['PumpPressure', 'PumpSpeed', 'PumpFLow', 'LVP', 'LVEDP', 'SYSTOLIC','DIASTOLIC','PULSAT','PumpCurrent','Heart Rate', 'ESE_lv','Pump Level']
 ```
 - **Action Space**: Discrete (9 actions, p-levels 2-10) or Continuous (p-levels 2.0-10.0)
-- **Reward Function**: Smooth reward function as MPC, evaluating MAP, heart rate, pulsatility, etc.
+- **Reward Function**: Smooth reward function currently only evaluating MAP, heart rate, pulsatility.
 - **Episode Structure**: Configurable episode length with automatic episode generation from test data. Default is 24 hours.
 
 ### Factory Pattern
