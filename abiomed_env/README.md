@@ -26,7 +26,7 @@ The RL environment provides a standard gym-like interface for reinforcement lear
 - **Reward Function**: Smooth reward function currently only evaluating MAP, heart rate, pulsatility.
 - **Episode Structure**: Configurable episode length with automatic episode generation from test data. Default is 24 hours.
 
-### Factory Pattern
+### Env Factory Pattern
 The `AbiomedRLEnvFactory` provides a convenient way to create environments with different configurations:
 - Model selection (10min_1hr_window, 5min_2hr_window, etc.)
 - Action space type (discrete/continuous)
