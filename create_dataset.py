@@ -26,6 +26,25 @@ from models.wrappers import (
                         RandomNormalNoisyTransitionsActions
                         )
 
+def load_noisy_sac_policy(args):
+    if args.action and not args.transition:
+        logdir = os.path.join(args.log_dir, 'sac_expert', f"sac_v2_{args.env_name.split('-')[0]}_action_noisy_{args.scale_action}_{args.noise_rate_action}.pkl")   
+        print(f"Training with noisy actions in {logdir}")
+    elif args.transition and not args.action:
+        logdir = os.path.join(args.log_dir, 'sac_expert', f"sac_v2_{args.env_name.split('-')[0]}_obs_noisy_{args.scale_transition}_{args.noise_rate_transition}.pkl") 
+        print(f"Training with noisy transitions in {logdir}")
+    elif args.transition and args.action:
+        # noisy_env = RandomNormalNoisyTransitionsActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
+        logdir = os.path.join(args.log_dir, 'expert_models', f"sac_v2_{args.env_name.split('-')[0]}_action_obs_noisy_{args.scale_action}_{args.noise_rate_action}_{args.scale_transition}_{args.noise_rate_transition}.pkl") 
+        print(f"Training with noisy actions and transitions in {logdir}")
+    else:
+        logdir = os.path.join(args.log_dir, 'expert_models', f"sac_v2_{args.env_name.split('-')[0]}")
+        print(f'Training in {logdir}!')
+    
+    model = SAC.load(logdir, device = f"cuda:{args.devid}")
+    return model
+    
+    
 
 
   
@@ -93,20 +112,33 @@ def main(noisy_env, model, args):
         
         print(f"Creating dataset with noisy actions and transitions in {logdir}")
     else:
-        print('Expert dataset is being created!')
+        
         if args.farama:
             logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
         else:
             logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
+        print(f'Expert dataset is being created in {logdir}!')
         
     
-    observation, info = env.reset(seed = args.seed)
+    # observation, info = env.reset(seed = args.seed)
     seed = args.seed
     noisy_data = {'observations': [], 'actions': [], 'rewards': [], 'next_observations': [], 'terminals': []}
-    num_samples = 0
-    steps = 0
-    while num_samples <= args.num_samples:
-        action, _states = model.predict(observation, deterministic=True) 
+    # num_samples = 0
+    # steps = 0
+    truncated = True
+    terminated = True
+    seed = 123
+    for num_samples in  tqdm.tqdm(range(args.dataset_size)):
+        
+        if terminated or truncated:
+            observation, info = noisy_env.reset(seed=seed)
+            num_samples += 1
+            seed += 1
+            if (args.dataset_size - num_samples) < env.spec.max_episode_steps:  # trim trailing non-full episodes
+                print(f'endded after {num_samples} steps')
+                break
+
+        action, _states = model.predict(observation) 
         if args.action: #add noise here
             action = noisy_env.action(action)
 
@@ -119,14 +151,8 @@ def main(noisy_env, model, args):
         noisy_data['terminals'].append([terminated])
 
         observation = next_observation
-        steps +=1
-        if terminated or truncated:
-            observation, info = noisy_env.reset(seed=seed)
-            num_samples += 1
-            seed += 1
-            if (args.dataset_size - steps) < env.spec.max_episode_steps:  # trim trailing non-full episodes
-                print(f'endded after {num_samples} steps')
-                break
+        # steps +=1
+        
 
         
     noisy_data = {
@@ -161,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--scale_transition", type=float, default=0.001, help="Standard deviation of the transition noise distribution")
     parser.add_argument("--action", action='store_true', help="Create dataset with noisy actions")
     parser.add_argument("--transition", action='store_true', help="Create dataset with noisy transitions")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--log_dir", type=str, default="/abiomed/intermediate_data_d4rl")
     parser.add_argument("--devid", type=int, default=1)
     parser.add_argument("--episodes", type=int, default=100, help="Number of episodes to evaluate the expert")

@@ -24,8 +24,7 @@ from models.wrappers import (
                         RandomNormalNoisyTransitions,
                         RandomNormalNoisyTransitionsActions
                         )
-from create_dataset import load_policy, load_policy_farama
-
+from create_dataset import load_policy, load_policy_farama,load_noisy_sac_policy
 
 
 
@@ -114,7 +113,7 @@ if __name__ == "__main__":
     if args.farama:
         model = load_policy_farama(env, args)
     else:
-        model = load_policy(args)
+        model = load_noisy_sac_policy(args)
 
     evaluate_expert(noisy_env,model, args)
     env.close()
