@@ -251,6 +251,16 @@ def main():
         policy = A2C("MlpPolicy", env, verbose=1, device=model_device)
         print("Using A2C policy")
     elif args.policy_type == "sac":
+        env = AbiomedRLEnvFactory.create_env(
+        model_name=args.model_name,
+        model_path=args.model_path,
+        data_path=args.data_path,
+        max_steps=args.max_steps,
+        action_space_type="continuous",
+        reward_type="smooth",
+        normalize_rewards=False,
+        seed=42
+        )
         policy = SAC("MlpPolicy", env, verbose=1, device=model_device, **policy_kwargs)
         print("Using SAC policy")
     elif args.policy_type == "ppo":
