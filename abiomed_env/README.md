@@ -53,8 +53,12 @@ Use the provided example script for training and evaluation:
 # Train a random policy
 python rl_example.py --policy_type random --train_episodes 1 --eval_episodes 24
 
-# Train an a2c (or PPO) policy
+# Train an a2c policy (continuous)
 python rl_example.py --policy_type a2c --train_episodes 10000 --batch_size 64 --max_steps 24
+
+# Train a PPO policy (discrete)
+python rl_example.py --policy_type ppo --train_episodes 10000 --batch_size 64 --max_steps 24
+
 ```
 
 ### MPC training 
