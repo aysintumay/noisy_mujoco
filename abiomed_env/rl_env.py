@@ -87,7 +87,8 @@ class AbiomedRLEnv(gym.Env):
         if self.action_space_type == "discrete":
             return self.action_mapping[int(action)]
         else:
-            return int(np.clip(action[0], self.min_action, self.max_action))
+            unnormed_action = self.world_model.unnorm_pl(action)
+            return int(np.clip(unnormed_action, 2, 10))
     
     def _compute_reward(self, state: torch.Tensor) -> float:
         state_reshaped = state.cpu().unsqueeze(0)
