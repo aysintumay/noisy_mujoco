@@ -20,7 +20,7 @@ import torch
 # Add the parent directory to the system path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.wrappers import (
+from wrappers import (
                         RandomNormalNoisyActions, 
                         RandomNormalNoisyTransitions,
                         RandomNormalNoisyTransitionsActions
@@ -196,6 +196,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     env = gym.make(args.env_name)
+    # args.action = True
+    # args.transition = True
 
     if args.action and not args.transition:
         print("Environment with noisy actions")

@@ -413,6 +413,9 @@ class WorldModel(nn.Module):
 
     def unnorm_pl(self, pl):
         return pl.cpu() * self.std[-1] + self.mean[-1]
+    
+    def normalize_pl(self, pl):
+        return (pl - self.mean[-1]) / self.std[-1]
 
     def test_output(self):
         test_loader = DataLoader(self.data_test, batch_size=64, shuffle=False)

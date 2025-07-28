@@ -5,9 +5,9 @@ from gym import spaces
 from typing import Dict, Any, Tuple, Optional
 import random
 
-from model import WorldModel
-from reward_func import compute_reward_smooth
-import config
+from .model import WorldModel
+from .reward_func import compute_reward_smooth
+import noisy_mujoco.abiomed_env.config as config
 
 
 class AbiomedRLEnv(gym.Env):

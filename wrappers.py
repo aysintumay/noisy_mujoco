@@ -1,6 +1,10 @@
 
 import numpy as np
 import gymnasium as gym
+import os
+import sys
+# Add the parent directory to the system path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 '''
 This module is copied and modified from the noisyenv package [1].
@@ -15,7 +19,7 @@ class RandomNormalNoisyActions(gym.ActionWrapper):
         >>> import gymnasium as gym
         >>> from noisyenv.wrappers import RandomNormalNoisyObservation
         >>> env = gym.make("CartPole-v1")
-        >>> wrapped_env = RandomNormalNoisyObservation(env, noise_rate=0.1, loc=0.0, scale=0.1)
+        >>> wrapped_env = RandomNormalNoisyActions(env, noise_rate=0.1, loc=0.0, scale=0.1)
     """
 
     def __init__(self, env, noise_rate=0.01, loc=0.0, scale=0.01):
@@ -35,6 +39,11 @@ class RandomNormalNoisyActions(gym.ActionWrapper):
         self.added_noise = True
         self.loc = loc
         self.scale = scale
+        
+    def seed(self,seed):
+        """Set the seed for the random number generator."""
+        np.random.seed(seed)
+        self.seed = seed 
 
     def action(self, action):
         """Modify the action by adding or multiplying noise with some probability."""
@@ -48,6 +57,13 @@ class RandomNormalNoisyActions(gym.ActionWrapper):
             action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
         return action
 
+    def get_normalized_score(self, reward, cost=0):
+        """Get the normalized score for the observation."""
+        if hasattr(self.env, "get_normalized_score"):
+            return self.env.get_normalized_score(reward, cost)
+        else:
+            return reward, cost
+
 
 class RandomNormalNoisyTransitions(gym.ObservationWrapper):
     """Adds random Normal noise to the observations of the environment.
@@ -56,7 +72,7 @@ class RandomNormalNoisyTransitions(gym.ObservationWrapper):
         >>> import gymnasium as gym
         >>> from noisyenv.wrappers import RandomNormalNoisyObservation
         >>> env = gym.make("CartPole-v1")
-        >>> wrapped_env = RandomNormalNoisyObservation(env, noise_rate=0.1, loc=0.0, scale=0.1)
+        >>> wrapped_env = RandomNormalNoisyTransitions(env, noise_rate=0.1, loc=0.0, scale=0.1)
     """
 
     def __init__(self, env, noise_rate=0.01, loc=0.0, scale=0.01):
@@ -77,6 +93,11 @@ class RandomNormalNoisyTransitions(gym.ObservationWrapper):
         self.loc = loc
         self.scale = scale
 
+    def seed(self,seed):
+        """Set the seed for the random number generator."""
+        np.random.seed(seed)
+        self.seed = seed
+
     def observation(self, observation):
         """Modify the action by adding or multiplying noise with some probability."""
         if np.random.rand() <= self.noise_rate:
@@ -89,6 +110,14 @@ class RandomNormalNoisyTransitions(gym.ObservationWrapper):
             observation = np.clip(observation, self.env.observation_space.low, self.env.observation_space.high)
         return observation
 
+    def get_normalized_score(self, reward, cost=0):
+        """Get the normalized score for the observation."""
+        if hasattr(self.env, "get_normalized_score"):
+            return self.env.get_normalized_score(reward, cost)
+        else:
+            return reward, cost
+
+
 
 class RandomNormalNoisyTransitionsActions(gym.Wrapper):
     """Adds random Normal noise to the observations of the environment.
@@ -97,7 +126,7 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
         >>> import gymnasium as gym
         >>> from noisyenv.wrappers import RandomNormalNoisyObservation
         >>> env = gym.make("CartPole-v1")
-        >>> wrapped_env = RandomNormalNoisyObservation(env, noise_rate=0.1, loc=0.0, scale=0.1)
+        >>> wrapped_env = RandomNormalNoisyTransitionsActions(env, noise_rate_action=0.01, loc=0.0, scale_action=0.01, noise_rate_transition=0.01, scale_transition=0.01)
     """
 
     def __init__(self, env, noise_rate_action=0.01, loc=0.0, scale_action=0.01, noise_rate_transition=0.01, scale_transition=0.01):
@@ -120,6 +149,10 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
         self.scale_action_ = scale_action
         self.scale_transition_ = scale_transition
 
+    def seed(self,seed):
+        """Set the seed for the random number generator."""
+        np.random.seed(seed)
+        self.seed = seed
         
     def reset(self, **kwargs):
         """Override the reset method to apply noise to the initial observation."""
@@ -167,3 +200,10 @@ class RandomNormalNoisyTransitionsActions(gym.Wrapper):
             # Clip to ensure action remains valid
             action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
         return action
+    
+    def get_normalized_score(self, reward, cost=0):
+        """Get the normalized score for the observation."""
+        if hasattr(self.env, "get_normalized_score"):
+            return self.env.get_normalized_score(reward, cost)
+        else:
+            return reward, cost
