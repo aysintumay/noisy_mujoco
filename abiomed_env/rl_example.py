@@ -266,8 +266,9 @@ def main():
     elif args.policy_type == "ppo":
         policy = PPO("MlpPolicy", env, verbose=1, device=model_device, **policy_kwargs)
         print("Using PPO policy")
-        
-    print(f"Policy created on device: {policy.device}")
+    
+    if args.policy_type != "random":
+        print(f"Policy created on device: {policy.device}")
     print(f"Action space: {env.action_space}")
     print(f"Observation space: {env.observation_space}")
     

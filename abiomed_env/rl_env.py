@@ -5,9 +5,14 @@ from gym import spaces
 from typing import Dict, Any, Tuple, Optional
 import random
 
-from .model import WorldModel
-from .reward_func import compute_reward_smooth
-import noisy_mujoco.abiomed_env.config as config
+#add path of where this file is located
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from model import WorldModel
+from reward_func import compute_reward_smooth
+import config as config
 
 
 class AbiomedRLEnv(gym.Env):
@@ -44,8 +49,11 @@ class AbiomedRLEnv(gym.Env):
             self.action_space = spaces.Discrete(9)  # p-levels 2-10
             self.action_mapping = {i: i + 2 for i in range(9)}
         else:
+            self.min_action = self.world_model.normalize_pl(torch.tensor([2])).item()
+            self.max_action = self.world_model.normalize_pl(torch.tensor([10])).item()
+            print(f"Continuous action space. Min action: {self.min_action}, Max action: {self.max_action}")
             self.action_space = spaces.Box(
-                low=2.0, high=10.0, shape=(1,), dtype=np.float32
+                low=self.min_action, high=self.max_action, shape=(1,), dtype=np.float32
             )
         
         # Observation space (all features)
@@ -79,7 +87,7 @@ class AbiomedRLEnv(gym.Env):
         if self.action_space_type == "discrete":
             return self.action_mapping[int(action)]
         else:
-            return int(np.clip(action[0], 2, 10))
+            return int(np.clip(action[0], self.min_action, self.max_action))
     
     def _compute_reward(self, state: torch.Tensor) -> float:
         state_reshaped = state.cpu().unsqueeze(0)

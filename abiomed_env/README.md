@@ -22,7 +22,7 @@ The RL environment provides a standard gym-like interface for reinforcement lear
 ```python
     ['PumpPressure', 'PumpSpeed', 'PumpFLow', 'LVP', 'LVEDP', 'SYSTOLIC','DIASTOLIC','PULSAT','PumpCurrent','Heart Rate', 'ESE_lv','Pump Level']
 ```
-- **Action Space**: Discrete (9 actions, p-levels 2-10) or Continuous (p-levels 2.0-10.0)
+- **Action Space**: Discrete (9 actions, p-levels 2-10) or Continuous (*normalized* p-levels)
 - **Reward Function**: Smooth reward function currently only evaluating MAP, heart rate, pulsatility.
 - **Episode Structure**: Configurable episode length with automatic episode generation from test data. Default is 24 hours.
 
@@ -53,8 +53,8 @@ Use the provided example script for training and evaluation:
 # Train a random policy
 python rl_example.py --policy_type random --train_episodes 1 --eval_episodes 24
 
-# Train an a2c policy (continuous)
-python rl_example.py --policy_type a2c --train_episodes 10000 --batch_size 64 --max_steps 24
+# Train an SAC policy (continuous)
+python rl_example.py --policy_type sac --train_episodes 10000 --batch_size 64 --max_steps 24
 
 # Train a PPO policy (discrete)
 python rl_example.py --policy_type ppo --train_episodes 10000 --batch_size 64 --max_steps 24

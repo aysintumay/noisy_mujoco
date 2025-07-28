@@ -343,10 +343,16 @@ class WorldModel(nn.Module):
         pl is (N, horizon)
         """
 
-        # step takes int pl as action
         if isinstance(pl, int):
+            # step takes int pl as action
+            # we need to convert it to a tensor of shape (N, horizon)
             new_pl = torch.tensor([pl] * self.forecast_horizon).to(self.device).unsqueeze(0)
             pl = (new_pl - self.mean[-1]) / self.std[-1]
+        elif isinstance(pl, float):
+            # in the case of continuous action space, pl is a float (already normalized)
+            # range between -2.193 and 1.884
+            pl = torch.tensor([pl] * self.forecast_horizon).to(self.device).unsqueeze(0)
+
 
         x, pl = x.to(self.device).float(), pl.to(self.device).float()
         
