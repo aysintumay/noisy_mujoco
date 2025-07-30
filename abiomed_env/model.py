@@ -396,6 +396,8 @@ class WorldModel(nn.Module):
         return outputs
     
     def unnorm_output(self, output, ignore_pl=False):
+        if not isinstance(output, torch.Tensor):
+            output = torch.tensor(output).to(self.device)
         if ignore_pl:
             return output.cpu() * self.std[self.columns[:-1]] + self.mean[self.columns[:-1]]
         else:
@@ -413,6 +415,8 @@ class WorldModel(nn.Module):
     
 
     def unnorm_pl(self, pl):
+        if not isinstance(pl, torch.Tensor):
+            pl = torch.tensor(pl).to(self.device)
         return pl.cpu() * self.std[-1] + self.mean[-1]
     
     def normalize_pl(self, pl):
