@@ -87,7 +87,8 @@ class AbiomedRLEnv(gym.Env):
         if self.action_space_type == "discrete":
             return self.action_mapping[int(action)]
         else:
-            unnormed_action = self.world_model.unnorm_pl(action)
+            # takes unnormalized action output and returns p-level
+            unnormed_action = self.world_model.unnorm_pl(torch.tensor(action))
             return int(np.clip(unnormed_action, 2, 10))
     
     def _compute_reward(self, state: torch.Tensor) -> float:
@@ -95,9 +96,8 @@ class AbiomedRLEnv(gym.Env):
         state_reshaped_unnorm = self.world_model.unnorm_output(state_reshaped)
         reward = compute_reward_smooth(state_reshaped_unnorm).item()
 
-        # TODO: normalize rewards
-        # if self.normalize_rewards:
-        #     reward = np.clip(reward / 10.0, -1.0, 1.0)
+        if self.normalize_rewards:
+            reward = (reward + 4) / 5
         
         return reward
     
@@ -193,7 +193,7 @@ class AbiomedRLEnvFactory:
         max_steps: int = 50,
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
-        normalize_rewards: bool = False,
+        normalize_rewards: bool = True,
         seed: Optional[int] = None
     ) -> AbiomedRLEnv:
         

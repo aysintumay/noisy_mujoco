@@ -210,7 +210,7 @@ def main():
     parser.add_argument("--eval_episodes", type=int, default=20)
     parser.add_argument("--policy_type", type=str, default="random", 
                        choices=["random","sac", "dqn", "ppo", "a2c"])
-    
+    parser.add_argument("--normalize_rewards", type=bool, default=True)
     parser.add_argument("--batch_size", type=int, default=128)
 
     parser.add_argument("--mpc", type=bool, default=False)
@@ -227,7 +227,7 @@ def main():
         max_steps=args.max_steps,
         action_space_type="discrete",
         reward_type="smooth",
-        normalize_rewards=False,
+        normalize_rewards=args.normalize_rewards,
         seed=42
     )
     
@@ -258,7 +258,7 @@ def main():
         max_steps=args.max_steps,
         action_space_type="continuous",
         reward_type="smooth",
-        normalize_rewards=False,
+        normalize_rewards=args.normalize_rewards,
         seed=42
         )
         policy = SAC("MlpPolicy", env, verbose=1, device=model_device, **policy_kwargs)
