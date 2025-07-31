@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
-
+import copy
 
 class TimeSeriesDataset(Dataset):
     def __init__(self, data_all, input_horizon=10, output_horizon=11):
@@ -93,6 +93,7 @@ class TimeSeriesTransformer(nn.Module):
         super(TimeSeriesTransformer, self).__init__()
 
         self.device = torch.device(device)
+        print("Using device:", self.device)
 
         self.dim_model = dim_model
         self.input_embedding = nn.Linear(input_dim, dim_model).to(self.device)
@@ -184,6 +185,7 @@ class WorldModel(nn.Module):
         self.device = torch.device(device)
         self.columns = columns if columns is not None else [i for i in range(0, 13) if i != 11]
         
+        print('time series transformer device', device)
         # --- Model ---
         model = TimeSeriesTransformer(
             input_dim=self.input_dim,
@@ -202,7 +204,12 @@ class WorldModel(nn.Module):
 
     def load_model(self, path):
         # when load model, default state is eval.
-        state_dict = torch.load(path, map_location=self.device)
+        #if self.device is not cuda:1, read from 1 and map to the device
+        if self.device != torch.device("cuda:1"):
+            print(f"Loading model from cuda:1 to {self.device}")
+            state_dict = torch.load(path, map_location="cuda:1")
+        else:
+            state_dict = torch.load(path, map_location=self.device)
         self.model.load_state_dict(state_dict, strict=False)
         self.model.to(self.device)
         self.model.eval()
@@ -334,8 +341,10 @@ class WorldModel(nn.Module):
         return best_model
 
     def save_model(self, path):
-        
-        torch.save(self.model.state_dict(), path)
+        #deepcopy model to cpu before saving
+        model_copy = copy.deepcopy(self.mode)
+        torch.save(model_copy.to('cpu').state_dict(), path)
+        del model_copy
 
     def step(self, x, pl):
         """

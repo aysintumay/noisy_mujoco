@@ -98,6 +98,7 @@ class AbiomedRLEnv(gym.Env):
 
         if self.normalize_rewards:
             reward = (reward + 4) / 5
+            reward = np.clip(reward, -1.0, 1.0)
         
         return reward
     
@@ -194,13 +195,15 @@ class AbiomedRLEnvFactory:
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
         normalize_rewards: bool = True,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        device: Optional[str] = None
     ) -> AbiomedRLEnv:
         
         if model_name not in config.model_configs:
             raise ValueError(f"Unknown model_name: {model_name}")
         
         model_kwargs = config.model_configs[model_name]
+        model_kwargs['device'] = torch.device(device) if device else torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
         world_model = WorldModel(**model_kwargs)
         
         if model_path is None:

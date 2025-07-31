@@ -67,7 +67,7 @@ model_kwargs_10min_1hr_col = {
     'encoder_dropout': 0.1,
     'decoder_dropout': 0,
     'max_len': 100,
-    'device': torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
+    # 'device': torch.device("cuda:1" if torch.cuda.is_available() else "cpu"),
     'columns': [0, 3, 4, 5, 6, 7, 9, 10, 12]
 }
 
