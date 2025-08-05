@@ -199,7 +199,6 @@ class AbiomedRLEnvFactory:
         seed: Optional[int] = None,
         device: Optional[str] = None
     ) -> AbiomedRLEnv:
-        
         if model_name not in config.model_configs:
             raise ValueError(f"Unknown model_name: {model_name}")
         
@@ -218,7 +217,6 @@ class AbiomedRLEnvFactory:
         
         world_model.load_data(data_path)
         print(f"Data loaded from {data_path}")
-        
         env = AbiomedRLEnv(
             world_model=world_model,
             max_steps=max_steps,
