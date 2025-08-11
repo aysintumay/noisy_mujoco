@@ -39,42 +39,31 @@ def overall_acp_cost(actions2d):
     acp = accumulated_change/total_timesteps
     return acp
 
-
-
-# def compute_air_cost(states, actions):
-#     """Calculates the total penalty due to Appropriate Intensification Rate (AIR) over an episode
-#     Args:
-#         states ()
-
-#     """
-#     #map, pulsatility, hr
-#     map <40 or >60
-
-#     if ()
-#     intensification_needed = 0
-#     air = 0.0
-#     i = 0
-#     for state in range(0, states-1):
-#         if state<60.0:
-#             intensification_needed += 1 if actions[i+1] > actions[i]:
-#             air += 1.0
-#     i += 1
-#     return air/len(actions)
-
-
-#for the doctor policy may do something like acp to include between episodes
 def compute_map_air(states, actions):
+    """
+    Calculates the total appropriate intensification rate across a single episode
+        based on actions vs MAP. Note that each step is an hour.
+
+    Args:
+        actions (list[float]) is a list of actions within the episode
+
+        states2D (list[float] is an array of MAP values for the episode
+    
+    Returns:
+        float: total AIR based on MAP for an episode
+    """
     opportunities = 0
     correct_intensifications = 0
-    for t in range(1, len(states)-2):
+
+    for t in range(1, len(states)-1):
         current_state = states[t]
 
-        if current_state < 60:
+        if current_state < 60.0:
             opportunities += 1
             if (actions[t] > actions[t - 1]):
                 correct_intensifications += 1
 
-        elif current_state > 100:
+        elif current_state > 100.0:
             opportunities += 1
             if (actions[t] < actions[t-1]):
                 correct_intensifications += 1
@@ -84,11 +73,21 @@ def compute_map_air(states, actions):
 
     return correct_intensifications / opportunities
 
+def overall_map_cost(actions2d, states2d):
+    """
+    Calculates the total appropriate intensification rate across all episodes
+        based on actions vs MAP
 
+    Args:
+        actions2d (list[list[float]]) is a 2D list where each inner list is
+            the sequence of actions from a single episode
 
-
-def overall_air_cost(actions2d, states2d):
-#map is the first column in states
+        states2D (list[list[float]]) is a 2D array where each row is a state
+            vector for a single timestep.
+    
+    Returns:
+        float: total AIR based on MAP from all episodes
+    """
     all_episode_rates = []
     for episode_states, episode_actions in zip(states2d, actions2d):
         map_vals = [state_vector[0] for state_vector in episode_states]
@@ -97,3 +96,96 @@ def overall_air_cost(actions2d, states2d):
             all_episode_rates.append(rate)
 
     return np.mean(all_episode_rates)
+
+def compute_hr_air(states, actions):
+    opportunities = 0
+    correct_intensifications = 0
+
+    for t in range(1, len(states)-1):
+        current_state = states[t]
+
+        if current_state <= 50.0:
+            opportunities += 1
+            if (actions[t] > actions[t - 1]):
+                correct_intensifications += 1
+
+        elif current_state >= 100.0:
+            opportunities += 1
+            if (actions[t] < actions[t-1]):
+                correct_intensifications += 1
+
+    if opportunities == 0:
+        return None
+
+    return correct_intensifications / opportunities
+
+def overall_hr_cost(actions2d, states2d):
+    all_episode_rates = []
+    for episode_states, episode_actions in zip(states2d, actions2d):
+        map_vals = [state_vector[3] for state_vector in episode_states]
+        rate = compute_hr_air(map_vals, episode_actions)
+        if rate is not None:
+            all_episode_rates.append(rate)
+
+    return np.mean(all_episode_rates)
+
+def compute_pulsatility_air(states, actions):
+    opportunities = 0
+    correct_intensifications = 0
+
+    for t in range(1, len(states)-1):
+        current_state = states[t]
+
+        if current_state <= 10.0:
+            opportunities += 1
+            if (actions[t] > actions[t - 1]):
+                correct_intensifications += 1
+
+    if opportunities == 0:
+        return None
+
+    return correct_intensifications / opportunities
+
+def overall_pulsatility_cost(actions2d, states2d):
+
+    all_episode_rates = []
+    for episode_states, episode_actions in zip(states2d, actions2d):
+        map_vals = [state_vector[7] for state_vector in episode_states]
+        rate = compute_pulsatility_air(map_vals, episode_actions)
+        if rate is not None:
+            all_episode_rates.append(rate)
+
+    return np.mean(all_episode_rates)
+
+#I think I need to look into this b/c not sure if it's the same for all policies
+MAP_IDX = 0
+HR_IDX = 5
+PULSATILITY_IDX = 7
+
+def unstable_states(flattened_states):
+    """
+    Calculates the percentage of total timesteps that are in an unstable state, 
+        which for now is when MAP, HR, or pulsatility are out of the proper range
+
+    Args:
+        flattened_states (list[list[float]]): A 2D array where each row is a state
+                                     vector for a single timestep.
+    """
+    total_timesteps = len(flattened_states)
+    if total_timesteps == 0:
+        return 0.0
+        
+    unsafe_count = 0
+    for state_vector in flattened_states:
+        current_map = state_vector[MAP_IDX]
+        current_hr = state_vector[HR_IDX]
+        current_pulsatility = state_vector[PULSATILITY_IDX]
+        is_map_unstable = (current_map < 60.0) or (current_map > 100.0)
+        is_hr_unstable = (current_hr <= 50.0) or (current_hr >= 100.0)
+        is_pulsatility_unstable = (current_pulsatility <= 10.0)
+
+        if is_map_unstable or is_hr_unstable or is_pulsatility_unstable:
+            unsafe_count += 1
+            
+    percentage = (unsafe_count / total_timesteps) * 100
+    return percentage
