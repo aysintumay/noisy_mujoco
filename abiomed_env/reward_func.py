@@ -4,7 +4,7 @@ import numpy as np
 
 def hr_penalty(hr):
     relu = torch.nn.ReLU()
-    return relu((hr - 65) ** 2 / 250 - 1).item()
+    return relu((hr - 75) ** 2 / 250 - 1).item()
 
 
 def min_map_penalty(map):
