@@ -403,6 +403,27 @@ class WorldModel(nn.Module):
             outputs.append(output)
         self.model.eval()
         return outputs
+
+    def unnorm_state_col(self, col_idx, state_vectors):
+
+        original_feature_index = self.columns[col_idx]
+        mean_val_tensor = self.mean[original_feature_index]
+        std_val_tensor = self.std[original_feature_index]
+        mean_val = mean_val_tensor.detach().cpu().numpy()
+        std_val = std_val_tensor.detach().cpu().numpy()
+
+        state_vectors_np = np.array(state_vectors)
+        normalized_col = state_vectors_np[:, col_idx]
+        unnormalized_col = (normalized_col * std_val) + mean_val
+        return unnormalized_col
+    
+    def unnorm_state_vectors(self, state_vectors):
+        normalized_states_np = np.array(state_vectors)
+        means = np.array([self.mean[col].item() for col in self.columns])
+        stds = np.array([self.std[col].item() for col in self.columns])
+        unnormalized_states = (normalized_states_np * stds) + means
+
+        return unnormalized_states
     
     def unnorm_output(self, output, ignore_pl=False):
         if not isinstance(output, torch.Tensor):
