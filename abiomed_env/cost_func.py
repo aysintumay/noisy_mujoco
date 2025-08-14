@@ -59,6 +59,7 @@ def compute_map_model_air(world_model,states, actions):
     map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=states)
     avg_map_values = []
     sampled_actions = []
+    print(map_values)
     #min within hour
     #Just averaged the MAP values for 6 timesteps and p level should be the same so get 6th val
     for i in range(0, len(map_values) - 5, 6):
@@ -431,9 +432,5 @@ def aggregate_air_model(world_model,states, actions):
     return aggregate_air_physician_hourly(unnormalized_states, actions)
 
 #write rationale for air functions
-#plot for aggregate
-#show accuracy of instability (map, hr, pulsatility same plot)
-#fix graphs to have min
-#plot actions, unstability for each state 
-#instablity and actionf or aggregate error 
-#check new functions on doctor, sonia's mopo
+#check new functions on sonia's mopo
+#get reward and acp on 6 hours
