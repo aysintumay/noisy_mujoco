@@ -418,7 +418,7 @@ class WorldModel(nn.Module):
 
         mean = data["mean"]
         std = data["std"]
-        self.mean, self.std = mean[self.columns], std[self.columns]
+        self.mean, self.std = mean, std
 
         self.data_train = TimeSeriesDataset(
             ((data["train"] - mean) / std)[:, :, self.columns],
