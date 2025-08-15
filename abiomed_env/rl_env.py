@@ -97,7 +97,8 @@ class AbiomedRLEnv(gym.Env):
         reward = compute_reward_smooth(state_reshaped_unnorm).item()
 
         if self.normalize_rewards:
-            reward = (reward + 4) / 5
+            # mean and std of original + low_p datasets are -8.93 and 4.41
+            reward = (reward + 8.93) / 4.41
             reward = np.clip(reward, -1.0, 1.0)
         
         return reward
