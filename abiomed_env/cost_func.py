@@ -56,23 +56,15 @@ def compute_map_model_air(world_model,states, actions):
                if no opportunities for intensification occurred
     """
     #Unnormalize the map column
-    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=states)
-    avg_map_values = []
-    sampled_actions = []
-    print(map_values)
-    #min within hour
-    #Just averaged the MAP values for 6 timesteps and p level should be the same so get 6th val
-    for i in range(0, len(map_values) - 5, 6):
-        map_chunk = map_values[i : i+6]
-        avg_map_values.append(min(map_chunk))
-        sampled_actions.append(actions[i+5])
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
 
     opportunities = 0
     correct_intensifications = 0
-    for t in range(1, len(avg_map_values)):
-        if avg_map_values[t] < 60.0:
+    for t in range(1, len(map_values)):
+        if np.min(map_values[t]) < 60.0:
             opportunities += 1
-            if sampled_actions[t] > sampled_actions[t - 1]:
+            if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
 
     if opportunities == 0:
@@ -136,21 +128,16 @@ def compute_hr_model_air(world_model, states, actions):
         float: The calculated AIR between 0.0 and 1.0 and just 0.0
                if no opportunities for intensification occurred
     """
-    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=states)
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
     
-    avg_hr_values = []
-    sampled_actions = []
-    for i in range(0, len(hr_values) - 5, 6):
-        hr_chunk = hr_values[i : i+6]
-        avg_hr_values.append(min(hr_chunk))
-        sampled_actions.append(actions[i+5])
 
     opportunities = 0
     correct_intensifications = 0
-    for t in range(1, len(avg_hr_values)):
-        if avg_hr_values[t] <= 50.0:
+    for t in range(1, len(hr_values)):
+        if np.min(hr_values[t]) <= 50.0:
             opportunities += 1
-            if sampled_actions[t] > sampled_actions[t - 1]:
+            if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
 
 
@@ -249,21 +236,15 @@ def compute_pulsatility_model_air(world_model, states, actions):
         float: The calculated AIR between 0.0 and 1.0 and just 0.0
                if no opportunities for intensification occurred
     """
-    pulsatility_values = world_model.unnorm_state_col(col_idx=7, state_vectors=states)
-
-    avg_pulsatility_values = []
-    sampled_actions = []
-    for i in range(0, len(pulsatility_values) - 5, 6):
-        pulsatility_chunk = pulsatility_values[i : i+6]
-        avg_pulsatility_values.append(min(pulsatility_chunk))
-        sampled_actions.append(actions[i+5])
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    pulsatility_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
 
     opportunities = 0
     correct_intensifications = 0
-    for t in range(1, len(avg_pulsatility_values)):
-        if avg_pulsatility_values[t] <= 20.0:
+    for t in range(1, len(pulsatility_values)):
+        if np.min(pulsatility_values[t]) <= 20.0:
             opportunities += 1
-            if sampled_actions[t] > sampled_actions[t - 1]:
+            if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
 
     if opportunities == 0:
@@ -321,9 +302,47 @@ def unstable_percentage(flattened_states):
         hr_in_hour = hour_chunk_np[:, HR_IDX]
         pulsatility_in_hour = hour_chunk_np[:, PULSATILITY_IDX]
 
-        is_map_unstable = min(map_in_hour) < 60.0
-        is_hr_unstable = (min(hr_in_hour) <= 50.0) or (max(hr_in_hour) >= 100.0)
-        is_pulsatility_unstable = min(pulsatility_in_hour) <= 10.0
+        is_map_unstable = (map_in_hour < 60).any() 
+        is_hr_unstable = (hr_in_hour < 50).any()
+        is_pulsatility_unstable = (pulsatility_in_hour <= 10).any()
+
+
+        if is_map_unstable or is_hr_unstable or is_pulsatility_unstable:
+            unstable_hour_count += 1
+    if total_hours == 0:
+        return 0.0
+            
+    percentage = (unstable_hour_count / total_hours) * 100
+    return percentage
+
+def unstable_percentage_model(world_model, states):
+    """
+    Calculates the percentage of total timesteps that are in an unstable state, 
+        which for now is when MAP, HR, or pulsatility are out of the proper range
+
+    Args:
+        states (list[list[float]]): A 2D array where each row is a state
+                                     vector for a single timestep.
+
+    Returns:
+        percentage (float) is the percentage of unsafe states
+    """
+    unstable_hour_count = 0
+    total_hours = 0
+    reshaped_states = states.reshape(len(states), world_model.forecast_horizon, -1)
+    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    for i in range(0, len(unnormalized_states)):
+        total_hours += 1
+        current_hour_data = unnormalized_states[i]
+        map_in_hour = current_hour_data[:,MAP_IDX]
+        print(map_in_hour)
+        hr_in_hour = current_hour_data[:,HR_IDX]
+        pulsatility_in_hour = current_hour_data[:,PULSATILITY_IDX]
+
+        is_map_unstable = (map_in_hour < 60).any() 
+        is_hr_unstable = (hr_in_hour < 50).any()
+        is_pulsatility_unstable = (pulsatility_in_hour <= 10).any()
+
 
         if is_map_unstable or is_hr_unstable or is_pulsatility_unstable:
             unstable_hour_count += 1
@@ -371,7 +390,7 @@ def weaning_score_physician(flattened_states, actions):
 
     return score / denom if denom != 0 else 0.0
 
-def weaning_score_model(world_model, flattened_states, actions):
+def weaning_score_model(world_model, states, actions):
     """
     Calculates a weaning score from hourly states and actions. Lowering p level by one is proper 
     weaning and increasing while stable is improper (so it is proportionally penalized)
@@ -385,8 +404,24 @@ def weaning_score_model(world_model, flattened_states, actions):
         float: The average weaning score per stable hour. A higher score
                means better weaning decisions, but we expect lower values.
     """
-    unnormalized_states = world_model.unnorm_state_vectors(flattened_states)
-    return weaning_score(unnormalized_states, actions)
+
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    score = 0.0
+    denom = 0.0
+    for t in range(1, len(actions)):
+        if is_stable(unnormalized_states[t]):
+            denom += 1.0
+            current_action = actions[t]
+            previous_action = actions[t-1]
+            increase_diff = current_action - previous_action
+            if (previous_action-current_action) == 1:
+                score += 1.0
+            
+            elif increase_diff > 0:
+                score -= increase_diff
+
+    return score / denom if denom != 0 else 0.0
 
 #note that like the other air functions, the adding of episode airs gets done outside
 def aggregate_air_physician(states, actions):
@@ -428,9 +463,15 @@ def aggregate_air_model(world_model,states, actions):
     Returns:
         float: The AIR score from 0.0 to 1.0
     """
-    unnormalized_states = world_model.unnorm_state_vectors(states)
-    return aggregate_air_physician_hourly(unnormalized_states, actions)
-
-#write rationale for air functions
-#check new functions on sonia's mopo
-#get reward and acp on 6 hours
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    opportunities = 0
+    correct_intensifications = 0
+    for t in range(1, len(actions)):
+        if not is_stable(unnormalized_states[t]):
+            opportunities += 1
+            if actions[t] > actions[t - 1]:
+                correct_intensifications += 1
+    if opportunities == 0:
+        return 0.0
+    return correct_intensifications / opportunities
