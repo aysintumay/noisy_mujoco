@@ -202,7 +202,7 @@ def run_mpc_baseline(env, num_episodes: int = 50) -> Dict[str, float]:
 
 def main():
     parser = argparse.ArgumentParser(description="RL Environment Example")
-    parser.add_argument("--model_name", type=str, default="10min_1hr_window")
+    parser.add_argument("--model_name", type=str, default="10min_1hr_all_data")
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--data_path", type=str, default=None)
     parser.add_argument("--max_steps", type=int, default=24)

@@ -152,6 +152,198 @@ class TimeSeriesTransformer(nn.Module):
         return torch.stack(samples)
 
 
+
+## Rotatry Positional Encoding
+
+
+class RotaryPositionalEmbedding(nn.Module):
+    def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
+        super().__init__()
+        self.dim = dim
+        self.max_position_embeddings = max_position_embeddings
+        self.base = base
+        inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2).float().to(device) / self.dim))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+    def forward(self, x, seq_len=None):
+        # x: [batch_size, seq_len, head_dim]
+        if seq_len is None:
+            seq_len = x.shape[-2]
+        
+        t = torch.arange(seq_len, device=x.device).type_as(self.inv_freq)
+        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos_cached = emb.cos()[None, :, :]
+        sin_cached = emb.sin()[None, :, :]
+        return cos_cached.to(dtype=x.dtype), sin_cached.to(dtype=x.dtype)
+
+
+def rotate_half(x):
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
+def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None):
+    if position_ids is None:
+        cos = cos[:, : q.shape[-2], :]
+        sin = sin[:, : q.shape[-2], :]
+    else:
+        cos = cos.squeeze(1).squeeze(0)  # [seq_len, dim]
+        sin = sin.squeeze(1).squeeze(0)
+        cos = cos[position_ids].unsqueeze(1)  # [batch_size, 1, seq_len, dim]
+        sin = sin[position_ids].unsqueeze(1)
+    
+    q_embed = (q * cos) + (rotate_half(q) * sin)
+    k_embed = (k * cos) + (rotate_half(k) * sin)
+    return q_embed, k_embed
+
+
+class RotaryMultiHeadAttention(nn.Module):
+    def __init__(self, d_model, num_heads, dropout=0.1, max_position_embeddings=2048, device='cpu'):
+        super().__init__()
+        assert d_model % num_heads == 0
+        
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
+        
+        self.w_q = nn.Linear(d_model, d_model).to(device)
+        self.w_k = nn.Linear(d_model, d_model).to(device)
+        self.w_v = nn.Linear(d_model, d_model).to(device)
+        self.w_o = nn.Linear(d_model, d_model).to(device)
+        
+        self.rotary_emb = RotaryPositionalEmbedding(
+            self.d_k, max_position_embeddings=max_position_embeddings, device=device
+        )
+        
+        self.dropout = nn.Dropout(dropout)
+        self.scale = 1.0 / np.sqrt(self.d_k)
+        
+    def forward(self, query, key, value, mask=None):
+        batch_size, seq_len, _ = query.size()
+        
+        # Linear transformations
+        Q = self.w_q(query).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        K = self.w_k(key).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        V = self.w_v(value).view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        
+        # Apply rotary positional embedding
+        cos, sin = self.rotary_emb(Q, seq_len)
+        Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
+        
+        # Scaled dot-product attention
+        scores = torch.matmul(Q, K.transpose(-2, -1)) * self.scale
+        
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, -1e9)
+            
+        attention_weights = torch.softmax(scores, dim=-1)
+        attention_weights = self.dropout(attention_weights)
+        
+        context = torch.matmul(attention_weights, V)
+        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
+        
+        output = self.w_o(context)
+        return output
+
+
+class RotaryTransformerEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, device='cpu'):
+        super().__init__()
+        self.self_attn = RotaryMultiHeadAttention(d_model, nhead, dropout, device=device)
+        self.linear1 = nn.Linear(d_model, dim_feedforward).to(device)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model).to(device)
+        self.norm1 = nn.LayerNorm(d_model).to(device)
+        self.norm2 = nn.LayerNorm(d_model).to(device)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        
+    def forward(self, src, src_mask=None):
+        # Self-attention
+        src2 = self.self_attn(src, src, src, src_mask)
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+        
+        # Feed forward
+        src2 = self.linear2(self.dropout(torch.relu(self.linear1(src))))
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        
+        return src
+
+
+class TimeSeriesTransformerRotary(nn.Module):
+    def __init__(self, input_dim, output_dim, dim_model=512, num_heads=8, num_encoder_layers=3, 
+                 num_decoder_layers=2, encoder_dropout=0.1, 
+                 decoder_dropout=0, max_len=100, forecast_horizon=11, device='cpu'):
+        super(TimeSeriesTransformerRotary, self).__init__()
+        
+        self.device = torch.device(device)
+        self.dim_model = dim_model
+        
+        self.input_embedding = nn.Linear(input_dim, dim_model).to(self.device)
+        
+        # Create encoder layers with rotary attention
+        encoder_layers = []
+        for _ in range(num_encoder_layers):
+            encoder_layers.append(
+                RotaryTransformerEncoderLayer(
+                    d_model=dim_model, 
+                    nhead=num_heads, 
+                    dropout=encoder_dropout,
+                    device=device
+                )
+            )
+        self.encoder_layers = nn.ModuleList(encoder_layers)
+        
+        self.decoder = Decoder(
+            num_layers=num_decoder_layers, 
+            input_size=dim_model + forecast_horizon, 
+            output_size=output_dim, 
+            dropout=decoder_dropout
+        ).to(self.device)
+    
+    def forward(self, src, pl):
+        src = self.input_embedding(src.to(self.device)) * np.sqrt(self.dim_model)
+        
+        # Pass through encoder layers
+        for layer in self.encoder_layers:
+            src = layer(src)
+        
+        # Use the last time step for decoding
+        pp = torch.cat([src[:, -1, :], pl], 1)
+        output = self.decoder(pp)
+        
+        return output
+    
+    def sample_multiple(self, src, pl, num_samples=10):
+        self.train()  # Enable dropout during inference
+        samples = []
+        for _ in range(num_samples):
+            output = self.forward(src, pl)
+            samples.append(output)
+        self.eval()  # Optionally, set back to eval mode if needed elsewhere
+        return torch.stack(samples)
+
+
+def model_factory(input_dim, output_dim,
+                dim_model=512, num_heads=8, 
+                num_encoder_layers=3, num_decoder_layers=2, 
+                encoder_dropout=0.1, decoder_dropout=0, 
+                max_len=100, forecast_horizon=12, 
+                model_type='transformer', device='cpu'):
+
+    if model_type == 'transformer':
+        return TimeSeriesTransformer(input_dim, output_dim, dim_model, num_heads, num_encoder_layers, num_decoder_layers, encoder_dropout, decoder_dropout, max_len, forecast_horizon, device)
+    elif model_type == 'rotary_transformer':
+        return TimeSeriesTransformerRotary(input_dim, output_dim, dim_model, num_heads, num_encoder_layers, num_decoder_layers, encoder_dropout, decoder_dropout, max_len, forecast_horizon, device)
+    else:
+        raise ValueError(f"Invalid model type: {model_type}")
+
+
 class WorldModel(nn.Module):
     def __init__(
         self,
@@ -165,6 +357,7 @@ class WorldModel(nn.Module):
         max_len=100,
         forecast_horizon=12,
         columns=None,
+        model_type='transformer',
         device="cpu",
     ):
         super(WorldModel, self).__init__()
@@ -187,7 +380,7 @@ class WorldModel(nn.Module):
         
         print('time series transformer device', device)
         # --- Model ---
-        model = TimeSeriesTransformer(
+        model = model_factory(
             input_dim=self.input_dim,
             output_dim=self.num_outputs,
             dim_model=dim_model,
@@ -198,6 +391,7 @@ class WorldModel(nn.Module):
             decoder_dropout=decoder_dropout,
             max_len=max_len,
             forecast_horizon=forecast_horizon,
+            model_type=model_type,
             device=device,
         )
         self.model = model
@@ -251,12 +445,18 @@ class WorldModel(nn.Module):
             len(self.data_test),
         )
 
-    def train_model(self, num_epochs=50, batch_size=64, learning_rate=0.001):
+    def train_model(self, num_epochs=50, batch_size=64, learning_rate=0.001, loss_fn = 'mse'):
         self.model.train()
 
         # --- Loss and Optimizer ---
         optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
-        criterion = torch.nn.MSELoss()
+        if loss_fn == 'mse':
+            criterion = torch.nn.MSELoss()
+        elif loss_fn == 'mae':
+            criterion = torch.nn.L1Loss()
+        else:
+            raise ValueError(f"Invalid loss function: {loss_fn}")
+        
         train_loader = DataLoader(self.data_train, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(self.data_val, batch_size=batch_size, shuffle=False)
         test_loader = DataLoader(self.data_test, batch_size=batch_size, shuffle=False)
@@ -290,7 +490,7 @@ class WorldModel(nn.Module):
             val_loss = 0
             val_map_mae = 0
             with torch.no_grad():
-                for x, pl, y in test_loader:
+                for x, pl, y in val_loader:
                     x, pl, y = (
                         x.to(self.device).float(),
                         pl.to(self.device).float(),
@@ -308,8 +508,8 @@ class WorldModel(nn.Module):
                     map_mae = criterion(output_formated[:, :, 0], y_formated[:, :, 0])
                     val_loss += loss.item() * x.size(0)
                     val_map_mae += map_mae.item() * x.size(0)
-            val_loss /= len(test_loader.dataset)
-            val_map_mae /= len(test_loader.dataset)
+            val_loss /= len(val_loader.dataset)
+            val_map_mae /= len(val_loader.dataset)
             train_loss_list.append(train_loss)
             val_loss_list.append(val_loss)
             val_map_mae_list.append(val_map_mae)
@@ -323,7 +523,7 @@ class WorldModel(nn.Module):
                 f"Epoch {epoch+1}/{num_epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val MAPE: {val_map_mae:.4f}"
             )
             if epoch % 10 == 0:
-                self.test()
+                self.test(loss_fn=loss_fn)
 
         self.model.load_state_dict(best_model)
         print("Best model validation loss: {:.4f}".format(best_val_loss))
@@ -342,7 +542,7 @@ class WorldModel(nn.Module):
 
     def save_model(self, path):
         #deepcopy model to cpu before saving
-        model_copy = copy.deepcopy(self.mode)
+        model_copy = copy.deepcopy(self.model)
         torch.save(model_copy.to('cpu').state_dict(), path)
         del model_copy
 
@@ -495,14 +695,19 @@ class WorldModel(nn.Module):
         self.model.eval()
         return outputs, ys, pls
     
-    def test(self):
+    def test(self, loss_fn='mse'):
         self.model.eval()
         outputs, ys, pls = self.test_output()
-        criterion = torch.nn.MSELoss()
+        if loss_fn == 'mse':
+            criterion = torch.nn.MSELoss()
+        elif loss_fn == 'mae':
+            criterion = torch.nn.L1Loss()
+        else:
+            raise ValueError(f"Invalid loss function: {loss_fn}")
         mse = criterion(torch.cat(outputs, dim=0), torch.cat(ys, dim=0))
-        print(f"MSE: {mse.item()}")
+        print(f"Final test {loss_fn}: {mse.item()}")
         map_mae = criterion(outputs[0][:, :, 0], ys[0][:, :, 0])
-        print(f"MAPE: {map_mae.item() * self.std[0]:.3f}")
+        print(f"Final test MAP {loss_fn}: {map_mae.item() * self.std[0]:.3f}")
         return mse.detach().item(), map_mae.detach().item() * self.std[0]
     
     def plot_only_output(self, in_len, pred, ax, need_unnorm=True, alpha=1):
@@ -590,5 +795,4 @@ class WorldModel(nn.Module):
 
         fig.tight_layout()  # otherwise the right y-label is slightly clipped
         plt.show()
-
 
