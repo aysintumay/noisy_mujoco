@@ -205,6 +205,8 @@ class AbiomedRLEnvFactory:
         seed: Optional[int] = None,
         device: Optional[str] = None
     ) -> AbiomedRLEnv:
+        
+        print(config)
         if model_name not in config.model_configs:
             raise ValueError(f"Unknown model_name: {model_name}")
         

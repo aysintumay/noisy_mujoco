@@ -39,6 +39,33 @@ def overall_acp_cost(actions2d):
     acp = accumulated_change/total_timesteps
     return acp
 
+def super_metric(world_model, states, actions):
+    """
+    Calculates the Action Change Penalty (ACP) for a single episode
+        if weaning is not succesful.
+
+    Args:
+        actions (list[float] or np.ndarray) is a 1D list or array of
+            actions within a single episode
+        states (list[list[float]]): A 2D array of state vectors for the episode.
+        world_model (object): An instance of the world model used to unnormalize
+
+    Returns:
+        float: The cumulative action change penalty for the episode
+    """
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    acp = 0.0
+    for t in range(1, len(actions)):
+        if is_stable(unnormalized_states[t]) and (actions[t] - actions[t-1]) >= 1:
+            acp += np.linalg.norm((actions[t] - actions[t-1]))
+        if not is_stable(unnormalized_states[t]) and (actions[t] - actions[t-1]) < 1:
+            acp += np.linalg.norm((actions[t] - actions[t-1]))
+        if not is_stable(unnormalized_states[t]) and (actions[t] - actions[t-1]) >= 1:
+            acp -= np.linalg.norm((actions[t] - actions[t-1]))
+
+    return acp
+
 def compute_map_model_air(world_model,states, actions):
     """
     Calculates the total appropriate intensification rate across a single episode
@@ -418,7 +445,8 @@ def weaning_score_model(world_model, states, actions):
                 score += 1.0
             
             elif increase_diff > 0:
-                score -= increase_diff
+                score -= 1
+                print('increased')
 
     return score / denom if denom != 0 else 0.0
 
