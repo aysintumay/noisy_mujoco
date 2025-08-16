@@ -335,7 +335,6 @@ def unstable_percentage_model(world_model, states):
         total_hours += 1
         current_hour_data = unnormalized_states[i]
         map_in_hour = current_hour_data[:,MAP_IDX]
-        print(map_in_hour)
         hr_in_hour = current_hour_data[:,HR_IDX]
         pulsatility_in_hour = current_hour_data[:,PULSATILITY_IDX]
 
@@ -473,5 +472,5 @@ def aggregate_air_model(world_model,states, actions):
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
-        return 0.0
+        return 1.0
     return correct_intensifications / opportunities
