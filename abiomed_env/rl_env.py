@@ -74,14 +74,16 @@ class AbiomedRLEnv(gym.Env):
         if init_data_size == 0:
             raise ValueError("No data available")
         
+        #return the initial and rest of the real state 
         init_data_index = random.randint(0, init_data_size - 1)
         if init_data_index < train_length:
-            return self.world_model.data_train[init_data_index][0]
+            return self.world_model.data_train[init_data_index][0], self.world_model.data_train[init_data_index: init_data_index + self.max_steps][0]
         elif init_data_index < train_length + val_length:
-            return self.world_model.data_val[init_data_index - train_length][0]
+            return self.world_model.data_val[init_data_index - train_length][0], \
+                self.world_model.data_train[init_data_index - train_length: init_data_index - train_length + self.max_steps][0]
         else:
-            return self.world_model.data_test[init_data_index - train_length - val_length][0]
-            
+            return self.world_model.data_test[init_data_index - train_length - val_length][0], \
+                self.world_model.data_train[init_data_index - train_length - val_length: init_data_index - train_length - val_length + self.max_steps][0]     
     
     def _action_to_p_level(self, action) -> int:
         if self.action_space_type == "discrete":
@@ -99,12 +101,15 @@ class AbiomedRLEnv(gym.Env):
         if self.normalize_rewards:
             # mean and std of original + low_p datasets are -8.93 and 4.41
             reward = (reward + 8.93) / 4.41
-            reward = np.clip(reward, -1.0, 1.0)
+            reward = np.clip(reward, -2.0, 2.0)
         
         return reward
     
     def _get_observation(self, state: torch.Tensor) -> np.ndarray:
         return state.cpu().numpy().reshape(-1).astype(np.float32)
+
+    def _get_all_observations(self, state: torch.Tensor) -> np.ndarray:
+        return state.cpu().numpy().reshape(self.max_steps, -1).astype(np.float32)
     
     def reset(self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         if seed is not None:
@@ -114,7 +119,7 @@ class AbiomedRLEnv(gym.Env):
             print(f"Resetting with options: {options}")
             self.current_state = options["state"]
         else:
-            self.current_state = self._get_next_episode_start()
+            self.current_state, all_states = self._get_next_episode_start()
         
         self.current_step = 0
         
@@ -122,8 +127,9 @@ class AbiomedRLEnv(gym.Env):
         self.episode_actions = []
         
         observation = self._get_observation(self.current_state)
+        all_observations = self._get_all_observations(all_states)
         
-        info = {"episode": {"r": 0.0, "l": 0, "t": 0.0}}
+        info = {"all_states":all_observations, "episode": {"r": 0.0, "l": 0, "t": 0.0}}
         
         return observation, info
     
