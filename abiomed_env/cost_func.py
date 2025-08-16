@@ -274,7 +274,7 @@ def is_stable(states):
     pulsatility_values = hour_np[:, PULSATILITY_IDX]
 
     is_map_unstable = min(map_values) < 60.0
-    is_hr_unstable = (min(hr_values) <= 50.0) or (max(hr_values) >= 100.0)
+    is_hr_unstable = (min(hr_values) <= 50.0) # or (max(hr_values) >= 100.0)
     is_pulsatility_unstable = min(pulsatility_values) <= 10.0
 
     if is_map_unstable or is_hr_unstable or is_pulsatility_unstable:
