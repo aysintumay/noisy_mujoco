@@ -57,11 +57,11 @@ def super_metric(world_model, states, actions):
     unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
     acp = 0.0
     for t in range(1, len(actions)):
-        if is_stable(unnormalized_states[t]) and (actions[t] - actions[t-1]) >= 1:
+        if is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) >= 1:
             acp += np.linalg.norm((actions[t] - actions[t-1]))
-        if not is_stable(unnormalized_states[t]) and (actions[t] - actions[t-1]) < 1:
+        if not is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) < 1:
             acp += np.linalg.norm((actions[t] - actions[t-1]))
-        if not is_stable(unnormalized_states[t]) and (actions[t] - actions[t-1]) >= 1:
+        if not is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) >= 1:
             acp -= np.linalg.norm((actions[t] - actions[t-1]))
 
     return acp
@@ -89,7 +89,7 @@ def compute_map_model_air(world_model,states, actions):
     opportunities = 0
     correct_intensifications = 0
     for t in range(1, len(map_values)):
-        if np.min(map_values[t]) < 60.0:
+        if np.min(map_values[t-1]) < 60.0:
             opportunities += 1
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
@@ -162,7 +162,7 @@ def compute_hr_model_air(world_model, states, actions):
     opportunities = 0
     correct_intensifications = 0
     for t in range(1, len(hr_values)):
-        if np.min(hr_values[t]) <= 50.0:
+        if np.min(hr_values[t-1]) <= 50.0:
             opportunities += 1
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
@@ -269,7 +269,7 @@ def compute_pulsatility_model_air(world_model, states, actions):
     opportunities = 0
     correct_intensifications = 0
     for t in range(1, len(pulsatility_values)):
-        if np.min(pulsatility_values[t]) <= 20.0:
+        if np.min(pulsatility_values[t-1]) <= 20.0:
             opportunities += 1
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
@@ -436,7 +436,7 @@ def weaning_score_model(world_model, states, actions):
     score = 0.0
     denom = 0.0
     for t in range(1, len(actions)):
-        if is_stable(unnormalized_states[t]):
+        if is_stable(unnormalized_states[t-1]):
             denom += 1.0
             current_action = actions[t]
             previous_action = actions[t-1]
@@ -495,7 +495,7 @@ def aggregate_air_model(world_model,states, actions):
     opportunities = 0
     correct_intensifications = 0
     for t in range(1, len(actions)):
-        if not is_stable(unnormalized_states[t]):
+        if not is_stable(unnormalized_states[t-1]):
             opportunities += 1
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
