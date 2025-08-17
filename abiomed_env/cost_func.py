@@ -39,7 +39,7 @@ def overall_acp_cost(actions2d):
     acp = accumulated_change/total_timesteps
     return acp
 
-def super_metric(world_model, states, actions):
+def super_metric(states, actions):
     """
     Calculates the Action Change Penalty (ACP) for a single episode
         if weaning is not succesful.
@@ -53,18 +53,28 @@ def super_metric(world_model, states, actions):
     Returns:
         float: The cumulative action change penalty for the episode
     """
-    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    # reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    # unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
     acp = 0.0
     for t in range(1, len(actions)):
-        if is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) >= 1:
+        if is_stable_1d(states[t-1]) and (actions[t] - actions[t-1]) >= 1:
             acp += np.linalg.norm((actions[t] - actions[t-1]))
-        if not is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) < 1:
+        if not is_stable_1d(states[t-1]) and (actions[t] - actions[t-1]) < 1:
             acp += np.linalg.norm((actions[t] - actions[t-1]))
-        if not is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) >= 1:
+        if not is_stable_1d(states[t-1]) and (actions[t] - actions[t-1]) >= 1:
             acp -= np.linalg.norm((actions[t] - actions[t-1]))
 
     return acp
+
+def is_stable_1d(state_vector):
+    #to match acp
+    map_value = state_vector[MAP_IDX]
+    hr_value = state_vector[HR_IDX]
+    pulsatility_value = state_vector[PULSATILITY_IDX]
+    is_map_unstable = map_value < 60.0
+    is_hr_unstable = (hr_value < 60.0)
+    is_pulsatility_unstable = pulsatility_value < 0.3
+    return not (is_map_unstable or is_hr_unstable or is_pulsatility_unstable)
 
 def compute_map_model_air(world_model,states, actions):
     """
