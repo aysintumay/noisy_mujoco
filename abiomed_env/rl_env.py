@@ -75,15 +75,26 @@ class AbiomedRLEnv(gym.Env):
             raise ValueError("No data available")
         
         #return the initial and rest of the real state 
-        init_data_index = random.randint(0, init_data_size - 1)
+        init_data_index = random.randint(0, init_data_size - self.max_steps)
+        # print('SELECTED FIRST INDEX FOR EPISODE:', init_data_index)
         if init_data_index < train_length:
-            return self.world_model.data_train[init_data_index][0], self.world_model.data_train[init_data_index: init_data_index + self.max_steps][0]
+            if init_data_index + self.max_steps> train_length:
+                full_state = torch.concat([self.world_model.data_train[init_data_index: ][0],\
+                                            self.world_model.data_val[: self.max_steps - (train_length - init_data_index)][0]])
+            else: 
+                full_state = self.world_model.data_train[init_data_index: init_data_index + self.max_steps][0]
+            return self.world_model.data_train[init_data_index][0], full_state
         elif init_data_index < train_length + val_length:
-            return self.world_model.data_val[init_data_index - train_length][0], \
-                self.world_model.data_train[init_data_index - train_length: init_data_index - train_length + self.max_steps][0]
+            if init_data_index - train_length + self.max_steps > val_length:
+                full_state = torch.concat([self.world_model.data_val[init_data_index - train_length: ][0],\
+                                            self.world_model.data_test[: self.max_steps - (val_length - (init_data_index - train_length))][0]])
+            else:
+                full_state = self.world_model.data_val[init_data_index - train_length: init_data_index - train_length + self.max_steps][0]
+            return self.world_model.data_val[init_data_index - train_length][0], full_state
         else:
+            
             return self.world_model.data_test[init_data_index - train_length - val_length][0], \
-                self.world_model.data_train[init_data_index - train_length - val_length: init_data_index - train_length - val_length + self.max_steps][0]     
+                self.world_model.data_test[init_data_index - train_length - val_length: init_data_index - train_length - val_length + self.max_steps][0]     
     
     def _action_to_p_level(self, action) -> int:
         if self.action_space_type == "discrete":

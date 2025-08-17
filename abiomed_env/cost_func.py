@@ -39,7 +39,7 @@ def overall_acp_cost(actions2d):
     acp = accumulated_change/total_timesteps
     return acp
 
-def super_metric(states, actions):
+def super_metric(world_model, states, actions):
     """
     Calculates the Action Change Penalty (ACP) for a single episode
         if weaning is not succesful.
@@ -53,15 +53,15 @@ def super_metric(states, actions):
     Returns:
         float: The cumulative action change penalty for the episode
     """
-    # reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    # unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
     acp = 0.0
     for t in range(1, len(actions)):
-        if is_stable_1d(states[t-1]) and (actions[t] - actions[t-1]) >= 1:
+        if is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) >= 1:
             acp += np.linalg.norm((actions[t] - actions[t-1]))
-        if not is_stable_1d(states[t-1]) and (actions[t] - actions[t-1]) < 1:
+        if not is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) < 1:
             acp += np.linalg.norm((actions[t] - actions[t-1]))
-        if not is_stable_1d(states[t-1]) and (actions[t] - actions[t-1]) >= 1:
+        if not is_stable(unnormalized_states[t-1]) and (actions[t] - actions[t-1]) >= 1:
             acp -= np.linalg.norm((actions[t] - actions[t-1]))
 
     return acp
@@ -137,7 +137,7 @@ def compute_map_physician_air(states, actions):
     correct_intensifications = 0
 
     for t in range(1, len(avg_map_values)):
-        if avg_map_values[t] < 60.0:
+        if avg_map_values[t-1] < 60.0:
             opportunities += 1
             if sampled_actions[t] > sampled_actions[t - 1]:
                 correct_intensifications += 1
@@ -210,7 +210,7 @@ def compute_hr_physician_air(states, actions):
     opportunities = 0
     correct_intensifications = 0
     for t in range(1, len(avg_hr_values)):
-        if avg_hr_values[t] <= 50.0:
+        if avg_hr_values[t-1] <= 50.0:
             opportunities += 1
             if sampled_actions[t] > sampled_actions[t - 1]:
                 correct_intensifications += 1
@@ -249,7 +249,7 @@ def compute_pulsatility_physician_air(states, actions):
     opportunities = 0
     correct_intensifications = 0
     for t in range(1, len(avg_pulsatility_values)):
-        if avg_pulsatility_values[t] <= 20.0:
+        if avg_pulsatility_values[t-1] <= 20.0:
             opportunities += 1
             if sampled_actions[t] > sampled_actions[t - 1]:
                 correct_intensifications += 1
@@ -304,7 +304,7 @@ def is_stable(states):
     Returns:
         bool: Returns True if the hour is stable and False if not
     """
-    assert len(states) == 6, "There are not 6 timesteps"
+    # assert len(states) == 6, "There are not 6 timesteps"
     hour_np = np.array(states)
     map_values = hour_np[:, MAP_IDX]
     hr_values = hour_np[:, HR_IDX]
@@ -403,20 +403,20 @@ def weaning_score_physician(flattened_states, actions):
         float: The average weaning score per stable hour. A higher score
                means better weaning decisions, but we expect lower values.
     """
-    hourly_states_list = []
-    hourly_actions = []
-    for i in range(0, len(actions) - 5, 6):
-        hour_chunk = flattened_states[i : i+6]
-        hourly_states_list.append(hour_chunk)
-        hourly_actions.append(actions[i+5])
+    # hourly_states_list = []
+    # hourly_actions = []
+    # for i in range(0, len(actions) - 5, 6):
+    #     hour_chunk = flattened_states[i : i+6]
+    #     hourly_states_list.append(hour_chunk)
+    #     hourly_actions.append(actions[i+5])
         
     score = 0.0
     denom = 0.0
-    for t in range(1, len(hourly_actions)):
-        if is_stable(hourly_states_list[t]):
+    for t in range(1, len(actions)):
+        if is_stable([flattened_states[t-1]]):
             denom += 1.0
-            current_action = hourly_actions[t]
-            previous_action = hourly_actions[t-1]
+            current_action = actions[t]
+            previous_action = actions[t-1]
             increase_diff = current_action - previous_action
             if (previous_action-current_action) == 1:
                 score += 1.0
@@ -456,7 +456,6 @@ def weaning_score_model(world_model, states, actions):
             
             elif increase_diff > 0:
                 score -= 1
-                print('increased')
 
     return score / denom if denom != 0 else 0.0
 
@@ -472,18 +471,18 @@ def aggregate_air_physician(states, actions):
     Returns:
         float: The AIR score from 0.0 to 1.0
     """
-    hourly_states_list = []
-    hourly_actions = []
-    for i in range(0, len(actions) - 5, 6):
-        hourly_states_list.append(states[i : i+6])
-        hourly_actions.append(actions[i+5])
-
+    # hourly_states_list = []
+    # hourly_actions = []
+    # for i in range(0, len(actions) - 5, 6):
+    #     hourly_states_list.append(states[i : i+6])
+    #     hourly_actions.append(actions[i : i+6])
     opportunities = 0
     correct_intensifications = 0
-    for t in range(1, len(hourly_actions)):
-        if not is_stable(hourly_states_list[t]):
+    
+    for t in range(1, len(actions)):
+        if not is_stable([states[t-1]]):
             opportunities += 1
-            if hourly_actions[t] > hourly_actions[t - 1]:
+            if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
         return 0.0
@@ -510,5 +509,5 @@ def aggregate_air_model(world_model,states, actions):
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
-        return 1.0
+        return 0.0
     return correct_intensifications / opportunities
