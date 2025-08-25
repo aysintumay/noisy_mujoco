@@ -62,7 +62,7 @@ class AbiomedRLEnv(gym.Env):
             low=-5, high=5, shape=(obs_dim,), dtype=np.float32
         )
         
-    def _get_next_episode_start(self) -> torch.Tensor:
+    def _get_next_episode_start(self, idx=None) -> torch.Tensor:
 
         # pick a random initial state from the data (always in distribution)
 
@@ -73,9 +73,11 @@ class AbiomedRLEnv(gym.Env):
         init_data_size = train_length + val_length + test_length
         if init_data_size == 0:
             raise ValueError("No data available")
-        
-        #return the initial and rest of the real state 
-        init_data_index = random.randint(0, init_data_size - self.max_steps)
+        if idx== None:
+            #return the initial and rest of the real state 
+            init_data_index = random.randint(0, init_data_size - self.max_steps)
+        else:
+            init_data_index = idx
         # print('SELECTED FIRST INDEX FOR EPISODE:', init_data_index)
         if init_data_index < train_length:
             if init_data_index + self.max_steps> train_length:
@@ -122,7 +124,7 @@ class AbiomedRLEnv(gym.Env):
     def _get_all_observations(self, state: torch.Tensor) -> np.ndarray:
         return state.cpu().numpy().reshape(self.max_steps, -1).astype(np.float32)
     
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def reset(self, idx: Optional[int] = None, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         if seed is not None:
             self.seed(seed)
         
@@ -130,7 +132,7 @@ class AbiomedRLEnv(gym.Env):
             print(f"Resetting with options: {options}")
             self.current_state = options["state"]
         else:
-            self.current_state, all_states = self._get_next_episode_start()
+            self.current_state, all_states = self._get_next_episode_start(idx)
         
         self.current_step = 0
         

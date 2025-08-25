@@ -312,7 +312,7 @@ def is_stable(states):
 
     is_map_unstable = min(map_values) < 60.0
     is_hr_unstable = (min(hr_values) <= 50.0) # or (max(hr_values) >= 100.0)
-    is_pulsatility_unstable = min(pulsatility_values) <= 10.0
+    is_pulsatility_unstable = min(pulsatility_values) <= 20.0
 
     if is_map_unstable or is_hr_unstable or is_pulsatility_unstable:
         return False
@@ -413,7 +413,7 @@ def weaning_score_physician(flattened_states, actions):
     score = 0.0
     denom = 0.0
     for t in range(1, len(actions)):
-        if is_stable([flattened_states[t-1]]):
+        if is_stable(flattened_states[t-1]):
             denom += 1.0
             current_action = actions[t]
             previous_action = actions[t-1]
@@ -422,7 +422,7 @@ def weaning_score_physician(flattened_states, actions):
                 score += 1.0
             
             elif increase_diff > 0:
-                score -= increase_diff
+                score -= 1
 
     return score / denom if denom != 0 else 0.0
 
@@ -480,7 +480,8 @@ def aggregate_air_physician(states, actions):
     correct_intensifications = 0
     
     for t in range(1, len(actions)):
-        if not is_stable([states[t-1]]):
+        if not is_stable(states[t-1]):
+            
             opportunities += 1
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
