@@ -112,9 +112,11 @@ class AbiomedRLEnv(gym.Env):
         reward = compute_reward_smooth(state_reshaped_unnorm).item()
 
         if self.normalize_rewards:
-            # mean and std of original + low_p datasets are -8.93 and 4.41
-            reward = (reward + 8.93) / 4.41
-            reward = np.clip(reward, -2.0, 2.0)
+            # OLD: mean and std of original + low_p datasets are -8.93 and 4.41
+            mean = -1.7018
+            std = 2.6621
+            reward = (reward - mean) / std
+            reward = np.clip(reward, -2.0, a_max = None) # ~4% is clipped from below
         
         return reward
     
