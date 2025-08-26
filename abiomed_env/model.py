@@ -4,7 +4,11 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 import copy
 
 class TimeSeriesDataset(Dataset):
@@ -724,6 +728,9 @@ class WorldModel(nn.Module):
 
 
     def plot_output(self, batch_data, pred, need_unnorm=True):
+        if not MATPLOTLIB_AVAILABLE:
+            print("Warning: matplotlib not available. Plotting skipped.")
+            return
         
         # unnorm x
         x_unnorm = batch_data[0][0].cpu() * self.std[self.columns] + self.mean[self.columns]
