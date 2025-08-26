@@ -65,7 +65,7 @@ def load_policy_farama(env, args):
         model = SAC.load(model_checkpoint, env=env, custom_objects={'observation_space': env.observation_space, 'action_space': env.action_space}, device = f"cuda:{args.devid}")
 
     elif args.env_name.split('-')[0] == "HalfCheetah":
-        model = TQC.load(model_checkpoint, device = f"cuda:{args.devid}")
+        model = TQC.load(model_checkpoint, env=env, custom_objects={'observation_space': env.observation_space, 'action_space': env.action_space}, device = f"cuda:{args.devid}")
 
     else:
         raise ValueError("Unsupported environment for noisy datasets creation.")
@@ -88,35 +88,40 @@ def load_policy(args):
 
 def main(noisy_env, model, args):
 
+    if (args.env_name.split('-')[0] == "Hopper") or (args.env_name.split('-')[0] == "Walker2d"):
+        model_p = 'sac_expert'
+    elif args.env_name.split('-')[0] == "HalfCheetah":
+        model_p = 'tqc_expert'
+
     if args.action and not args.transition:
         # noisy_env = RandomNormalNoisyActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
         if args.farama:
-            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_action_noisy_{args.scale_action}_{args.noise_rate_action}.pkl")
+            logdir = os.path.join(args.log_dir, f'farama_{model_p}', f"{args.env_name}_action_noisy_{args.scale_action}_{args.noise_rate_action}.pkl")
         else:
-            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_action_noisy_{args.scale_action}_{args.noise_rate_action}.pkl")   
+            logdir = os.path.join(args.log_dir, model_p, f"{args.env_name}_action_noisy_{args.scale_action}_{args.noise_rate_action}.pkl")   
         print(f"Creating dataset with noisy actions in {logdir}")
     elif args.transition and not args.action:
         # noisy_env = RandomNormalNoisyTransitions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
         if args.farama:
-            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_obs_noisy_{args.scale_transition}_{args.noise_rate_transition}.pkl")
+            logdir = os.path.join(args.log_dir, f'farama_{model_p}', f"{args.env_name}_obs_noisy_{args.scale_transition}_{args.noise_rate_transition}.pkl")
         else:
-            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_obs_noisy_{args.scale_transition}_{args.noise_rate_transition}.pkl") 
+            logdir = os.path.join(args.log_dir, model_p, f"{args.env_name}_obs_noisy_{args.scale_transition}_{args.noise_rate_transition}.pkl") 
         print(f"Creating dataset with noisy transitions in {logdir}")
     elif args.transition and args.action:
         # noisy_env = RandomNormalNoisyTransitionsActions(env=env, noise_rate=args.noise_rate, loc = args.loc, scale = args.scale)
 
         if args.farama:
-            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_action_obs_noisy_{args.scale_action}_{args.noise_rate_action}_{args.scale_transition}_{args.noise_rate_transition}.pkl")
+            logdir = os.path.join(args.log_dir, f'farama_{model_p}', f"{args.env_name}_action_obs_noisy_{args.scale_action}_{args.noise_rate_action}_{args.scale_transition}_{args.noise_rate_transition}.pkl")
         else:
-            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_action_obs_noisy_{args.scale_action}_{args.noise_rate_action}_{args.scale_transition}_{args.noise_rate_transition}.pkl") 
+            logdir = os.path.join(args.log_dir, model_p, f"{args.env_name}_action_obs_noisy_{args.scale_action}_{args.noise_rate_action}_{args.scale_transition}_{args.noise_rate_transition}.pkl") 
         
         print(f"Creating dataset with noisy actions and transitions in {logdir}")
     else:
         
         if args.farama:
-            logdir = os.path.join(args.log_dir, 'farama_sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
+            logdir = os.path.join(args.log_dir, f'farama_{model_p}', f"{args.env_name}_expert_{args.num_samples}.pkl")
         else:
-            logdir = os.path.join(args.log_dir, 'sac_expert', f"{args.env_name}_expert_{args.num_samples}.pkl")
+            logdir = os.path.join(args.log_dir, model_p, f"{args.env_name}_expert_{args.num_samples}.pkl")
         print(f'Expert dataset is being created in {logdir}!')
         
     

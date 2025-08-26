@@ -24,7 +24,7 @@ def hypertention_penalty(map):
     return relu((map - 106) / 18).item()
 
 
-def compute_reward_smooth(data, map_dim=0, pulsat_dim=6, hr_dim=7, lvedp_dim=3):
+def compute_reward_smooth(data, map_dim=0, pulsat_dim=7, hr_dim=9, lvedp_dim=3):
     """
     Differentiable version of the reward function using PyTorch
     data: torch.Tensor, shape (batch_size, horizon, num_features)
