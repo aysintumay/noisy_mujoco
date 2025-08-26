@@ -16,7 +16,8 @@ def compute_acp_cost(actions):
     """
     acp = 0.0
     for i in range(1, len(actions)):
-        acp += np.linalg.norm((actions[i] - actions[i-1]))
+        if np.linalg.norm((actions[i] - actions[i-1])) > 2:
+            acp += np.linalg.norm((actions[i] - actions[i-1]))
     return acp
 
 def overall_acp_cost(actions2d):
@@ -486,7 +487,7 @@ def aggregate_air_physician(states, actions):
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
-        return 0.0
+        return 1.0
     return correct_intensifications / opportunities
 
 def aggregate_air_model(world_model,states, actions):
@@ -510,5 +511,5 @@ def aggregate_air_model(world_model,states, actions):
             if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
-        return 0.0
+        return 1.0
     return correct_intensifications / opportunities
