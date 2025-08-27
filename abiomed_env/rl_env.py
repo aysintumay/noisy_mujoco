@@ -25,7 +25,6 @@ class AbiomedRLEnv(gym.Env):
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
         normalize_rewards: bool = True,
-        # reshaped_rwd: bool = False,
         seed: Optional[int] = None,
         gamma1: Optional[float] = 0.0,
         gamma2: Optional[float] = 0.0,
@@ -38,7 +37,6 @@ class AbiomedRLEnv(gym.Env):
         self.action_space_type = action_space_type
         self.reward_type = reward_type
         self.normalize_rewards = normalize_rewards
-        # self.reshaped_rwd = reshaped_rwd
     
         if seed is not None:
             self.seed(seed)
