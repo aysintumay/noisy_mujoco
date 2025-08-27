@@ -6,7 +6,7 @@ This script loads a trained SAC policy and uses it to generate trajectories
 in the AbiomedRLEnv, then formats the data according to D4RL specifications.
 
 Usage:
-    python sample_offline_dataset.py --model_path models/sac_20250815_2320.zip --num_episodes 1000
+    python sample_offline_dataset.py --model_path models/sac_20250827_0837.zip --num_episodes 1000
 """
 
 import numpy as np
@@ -68,6 +68,9 @@ def sample_trajectories_from_policy(
             # Take step in environment
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
+            
+            unnormed_action = env.world_model.unnorm_pl(torch.tensor(action))
+            action = int(np.clip(unnormed_action, 2, 10))
             
             # Store data
             episode_actions.append(action)
