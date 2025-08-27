@@ -203,6 +203,43 @@ class AbiomedRLEnv(gym.Env):
             torch.manual_seed(seed)
             if torch.cuda.is_available():
                 torch.cuda.manual_seed(seed)
+    
+   
+class AbiomedRLEnvNoisy(AbiomedRLEnv):
+    """RL Environment for Abiomed World Model with noise"""
+    
+    def __init__(self, *args, noise_rate: float = 0.0, 
+                              noise_scale: float = 0.00,
+                              **kwargs):
+
+        super().__init__(*args, **kwargs)
+        self.noise_rate = noise_rate
+        self.noise_scale = noise_scale
+        print(f"Noise rate: {self.noise_rate}, Noise scale: {self.noise_scale}")
+    
+    def add_noise(self, observation: np.ndarray) -> np.ndarray:
+        """Add noise to the observation"""
+        # do not add noise to the p-levels
+        noise = np.random.normal(0, self.noise_scale, observation.shape)
+        # p level is last column of the observation
+        num_features = self.world_model.num_features
+        for i in range(self.world_model.forecast_horizon):
+            noise[i * num_features + num_features - 1] = 0
+        observation = observation + noise
+        return observation
+
+    def reset(self, *args, **kwargs):
+        observation, info = super().reset(*args, **kwargs)
+        if np.random.uniform(0, 1) < self.noise_rate:
+            observation = self.add_noise(observation)
+        return observation, info
+    
+    def step(self, action):
+        observation, reward, terminated, truncated, info = super().step(action)
+        if np.random.uniform(0, 1) < self.noise_rate:
+            observation = self.add_noise(observation)
+        return observation, reward, terminated, truncated, info
+    
 
 
 class AbiomedRLEnvFactory:
@@ -217,6 +254,8 @@ class AbiomedRLEnvFactory:
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
         normalize_rewards: bool = True,
+        noise_rate: float = 0.0,
+        noise_scale: float = 0.00,
         seed: Optional[int] = None,
         device: Optional[str] = None
     ) -> AbiomedRLEnv:
@@ -240,14 +279,27 @@ class AbiomedRLEnvFactory:
         
         world_model.load_data(data_path)
         print(f"Data loaded from {data_path}")
-        env = AbiomedRLEnv(
-            world_model=world_model,
-            max_steps=max_steps,
-            action_space_type=action_space_type,
-            reward_type=reward_type,
-            normalize_rewards=normalize_rewards,
-            seed=seed
-        )
+
+        if noise_rate > 0:
+            env = AbiomedRLEnvNoisy(
+                world_model=world_model,
+                max_steps=max_steps,
+                action_space_type=action_space_type,
+                reward_type=reward_type,
+                normalize_rewards=normalize_rewards,
+                seed=seed,
+                noise_rate=noise_rate,
+                noise_scale=noise_scale
+            )
+        else:
+            env = AbiomedRLEnv(
+                world_model=world_model,
+                max_steps=max_steps,
+                action_space_type=action_space_type,
+                reward_type=reward_type,
+                normalize_rewards=normalize_rewards,
+                seed=seed
+            )
         
         return env
 

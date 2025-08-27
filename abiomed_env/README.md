@@ -32,6 +32,7 @@ The `AbiomedRLEnvFactory` provides a convenient way to create environments with 
 - Action space type (discrete/continuous)
 - Reward function type (smooth/discrete)
 - Episode length and reward normalization
+- Noisy observation (use `noise_rate` $\in [0,1]$ and `noise_scale` for Gaussian noise.)
 
 ## Installation
 
@@ -93,3 +94,14 @@ env = AbiomedRLEnvFactory.create_env()
 model = PPO("MlpPolicy", env, verbose=1)
 model.learn(total_timesteps=10000)
 ```
+
+### Create offline datasets
+
+To create offline datasets in D4RL format, simply run
+
+`python sample_offline_dataset.py`
+
+to sample noisy observation, run
+
+`python sample_offline_dataset.py --noise_rate 0.8 --noise_scale 0.2 --num_episodes 100000`
+
