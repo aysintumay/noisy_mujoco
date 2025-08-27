@@ -23,6 +23,24 @@ The RL environment provides a standard gym-like interface for reinforcement lear
     ['PumpPressure', 'PumpSpeed', 'PumpFLow', 'LVP', 'LVEDP', 'SYSTOLIC','DIASTOLIC','PULSAT','PumpCurrent','Heart Rate', 'ESE_lv','Pump Level']
 ```
 - **Action Space**: Discrete (9 actions, p-levels 2-10) or Continuous (*normalized* p-levels)
+
+To use reward shaping; set gamma1, gamma2 or gamma3 a nonzero value. Example environment call with reward shaping turned on:
+```
+env = AbiomedRLEnvFactory.create_env(
+									model_name="10min_1hr_all_data",
+									model_path=None,
+									data_path=None,
+									max_steps=6,
+									gamma1=0.1,
+									gamma2=0.1,
+									gamma3=0.1,
+									action_space_type="continuous",
+									reward_type="smooth",
+									normalize_rewards=True,
+									seed=42,
+									)
+```
+
 - **Reward Function**: Smooth reward function currently only evaluating MAP, heart rate, pulsatility.
 - **Episode Structure**: Configurable episode length with automatic episode generation from test data. Default is 24 hours.
 
