@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-def compute_acp_cost(actions):
+def compute_acp_cost(actions, states):
     """Calculates the Action Change Penalty (ACP) for a single episode
 
     This function iterates through a sequence of actions in an episode and
@@ -14,11 +14,40 @@ def compute_acp_cost(actions):
     Returns:
         float: The cumulative action change penalty for the episode
     """
+    reshaped_states = states.reshape(-1, 6, 12)
+    print(reshaped_states.shape, type(reshaped_states)) if reshaped_states.shape[0]>1 else None
+    first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     acp = 0.0
-    for i in range(1, len(actions)):
-        if np.linalg.norm((actions[i] - actions[i-1])) > 2:
-            acp += np.linalg.norm((actions[i] - actions[i-1]))
+    for i in range(1, len(all_actions)):
+        if np.linalg.norm((all_actions[i] - all_actions[i-1])) > 2:
+            acp += np.linalg.norm((all_actions[i] - all_actions[i-1]))
     return acp
+
+def compute_acp_cost_model(world_model, actions, states):
+    """Calculates the Action Change Penalty (ACP) for a single episode
+
+    This function iterates through a sequence of actions in an episode and
+    sums the change between each consecutive action
+
+    Args:
+        actions (list[float] or np.ndarray) is a 1D list or array of
+            actions within a single episode
+
+    Returns:
+        float: The cumulative action change penalty for the episode
+    """
+    reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    first_action_unnorm = np.array(np.bincount(np.array(unnormalized_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
+    acp = 0.0
+    for i in range(1, len(all_actions)):
+        if np.linalg.norm((all_actions[i] - all_actions[i-1])) > 2:
+            acp += np.linalg.norm((all_actions[i] - all_actions[i-1]))
+    return acp
+
+
 
 def overall_acp_cost(actions2d):
     """Calculates the mean ACP per timestep
@@ -307,9 +336,9 @@ def is_stable(states):
     """
     # assert len(states) == 6, "There are not 6 timesteps"
     hour_np = np.array(states)
-    map_values = hour_np[:, MAP_IDX]
-    hr_values = hour_np[:, HR_IDX]
-    pulsatility_values = hour_np[:, PULSATILITY_IDX]
+    map_values = hour_np[..., MAP_IDX]
+    hr_values = hour_np[..., HR_IDX]
+    pulsatility_values = hour_np[..., PULSATILITY_IDX]
 
     is_map_unstable = min(map_values) < 60.0
     is_hr_unstable = (min(hr_values) <= 50.0) # or (max(hr_values) >= 100.0)
@@ -410,17 +439,19 @@ def weaning_score_physician(flattened_states, actions):
     #     hour_chunk = flattened_states[i : i+6]
     #     hourly_states_list.append(hour_chunk)
     #     hourly_actions.append(actions[i+5])
-        
+    reshaped_states = flattened_states.reshape(-1, 6, 12)
+    first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     score = 0.0
     denom = 0.0
-    for t in range(1, len(actions)):
+    for t in range(1, len(all_actions)):
         if is_stable(flattened_states[t-1]):
             denom += 1.0
-            current_action = actions[t]
-            previous_action = actions[t-1]
+            current_action = all_actions[t]
+            previous_action = all_actions[t-1]
             increase_diff = current_action - previous_action
-            if (previous_action-current_action) == 1:
-                score += 1.0
+            if ((previous_action-current_action) == 1) or ((previous_action-current_action) == 2) :
+                score += previous_action-current_action
             
             elif increase_diff > 0:
                 score -= 1
@@ -435,22 +466,24 @@ def weaning_score_model(world_model, states, actions):
     Args:
         flattened_states (list[list[float]]): A 2D array of unnormalized
             state vectors for an entire time series
-        actions (list[float]): A list of p levels for each state.
+        action (list[float]): A list of p levels for each state, unnormalized.
 
     Returns:
         float: The average weaning score per stable hour. A higher score
                means better weaning decisions, but we expect lower values.
     """
 
-    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    first_action_unnorm = np.array(np.bincount(np.array(unnormalized_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     score = 0.0
     denom = 0.0
-    for t in range(1, len(actions)):
+    for t in range(1, len(all_actions)):
         if is_stable(unnormalized_states[t-1]):
             denom += 1.0
-            current_action = actions[t]
-            previous_action = actions[t-1]
+            current_action = all_actions[t]
+            previous_action = all_actions[t-1]
             increase_diff = current_action - previous_action
             if (previous_action-current_action) == 1:
                 score += 1.0
@@ -477,14 +510,17 @@ def aggregate_air_physician(states, actions):
     # for i in range(0, len(actions) - 5, 6):
     #     hourly_states_list.append(states[i : i+6])
     #     hourly_actions.append(actions[i : i+6])
+    reshaped_states = states.reshape(-1, 6, 12)
+    first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     opportunities = 0
     correct_intensifications = 0
     
-    for t in range(1, len(actions)):
+    for t in range(1, len(all_actions)):
         if not is_stable(states[t-1]):
             
             opportunities += 1
-            if actions[t] > actions[t - 1]:
+            if all_actions[t] > all_actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
         return 1.0
@@ -501,14 +537,16 @@ def aggregate_air_model(world_model,states, actions):
     Returns:
         float: The AIR score from 0.0 to 1.0
     """
-    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    unnormalized_states = world_model.unnorm_state_vectors(reshaped_states)
+    reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    first_action_unnorm = np.array(np.bincount(np.array(unnormalized_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     opportunities = 0
     correct_intensifications = 0
-    for t in range(1, len(actions)):
+    for t in range(1, len(all_actions)):
         if not is_stable(unnormalized_states[t-1]):
             opportunities += 1
-            if actions[t] > actions[t - 1]:
+            if all_actions[t] > all_actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
         return 1.0

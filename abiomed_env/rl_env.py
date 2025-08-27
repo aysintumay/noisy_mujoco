@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from model import WorldModel
-from reward_func import compute_reward_smooth
+from reward_func import compute_reward_smooth,compute_shaped_reward
 import config as config
 
 
@@ -25,7 +25,11 @@ class AbiomedRLEnv(gym.Env):
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
         normalize_rewards: bool = True,
-        seed: Optional[int] = None
+        # reshaped_rwd: bool = False,
+        seed: Optional[int] = None,
+        gamma1: Optional[float] = 0.0,
+        gamma2: Optional[float] = 0.0,
+        gamma3: Optional[float] = 0.0,
     ):
         super().__init__()
         
@@ -34,9 +38,14 @@ class AbiomedRLEnv(gym.Env):
         self.action_space_type = action_space_type
         self.reward_type = reward_type
         self.normalize_rewards = normalize_rewards
-        
+        # self.reshaped_rwd = reshaped_rwd
+    
         if seed is not None:
             self.seed(seed)
+
+        self.gamma1 = gamma1
+        self.gamma2 = gamma2
+        self.gamma3 = gamma3
         
         # Episode tracking
         self.current_step = 0
@@ -73,12 +82,12 @@ class AbiomedRLEnv(gym.Env):
         init_data_size = train_length + val_length + test_length
         if init_data_size == 0:
             raise ValueError("No data available")
+        
         if idx== None:
-            #return the initial and rest of the real state 
             init_data_index = random.randint(0, init_data_size - self.max_steps)
         else:
             init_data_index = idx
-        # print('SELECTED FIRST INDEX FOR EPISODE:', init_data_index)
+
         if init_data_index < train_length:
             if init_data_index + self.max_steps> train_length:
                 full_state = torch.concat([self.world_model.data_train[init_data_index: ][0],\
@@ -106,18 +115,29 @@ class AbiomedRLEnv(gym.Env):
             unnormed_action = self.world_model.unnorm_pl(torch.tensor(action))
             return int(np.clip(unnormed_action, 2, 10))
     
-    def _compute_reward(self, state: torch.Tensor) -> float:
-        state_reshaped = state.cpu().unsqueeze(0)
-        state_reshaped_unnorm = self.world_model.unnorm_output(state_reshaped)
-        reward = compute_reward_smooth(state_reshaped_unnorm).item()
-
+    def _compute_reward(self, next_state: torch.Tensor, state: Optional[torch.Tensor] = None, actions:Optional[torch.Tensor] = None) -> float:
+        """
+        state: torch.Tensor, shape (1 * forecast_horizon,feature_dim), normalized
+        actions: list, shape (1, 2) or None, unnormalized
+        """
+        next_state_reshaped = next_state.cpu().unsqueeze(0)
+        next_state_reshaped_unnorm = self.world_model.unnorm_output(next_state_reshaped)
+          
+        reward = compute_reward_smooth(next_state_reshaped_unnorm).item()
+        
         if self.normalize_rewards:
             # OLD: mean and std of original + low_p datasets are -8.93 and 4.41
             mean = -1.7018
             std = 2.6621
             reward = (reward - mean) / std
             reward = np.clip(reward, -2.0, a_max = None) # ~4% is clipped from below
-        
+
+        if (actions is not None) and (state is not None):
+            #self.current_state
+            state_reshaped = state.cpu().unsqueeze(0) 
+            state_reshaped_unnorm = self.world_model.unnorm_output(state_reshaped) 
+            add_rwd = compute_shaped_reward(state_reshaped_unnorm, actions, self.gamma1, self.gamma2, self.gamma3)
+            reward += add_rwd
         return reward
     
     def _get_observation(self, state: torch.Tensor) -> np.ndarray:
@@ -251,6 +271,9 @@ class AbiomedRLEnvFactory:
         model_path: str = None,
         data_path: str = None,
         max_steps: int = 50,
+        gamma1: float = 0.0,
+        gamma2: float = 0.0,
+        gamma3: float = 0.0,
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
         normalize_rewards: bool = True,

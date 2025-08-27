@@ -402,12 +402,8 @@ class WorldModel(nn.Module):
 
     def load_model(self, path):
         # when load model, default state is eval.
-        #if self.device is not cuda:1, read from 1 and map to the device
-        if self.device != torch.device("cuda:1"):
-            print(f"Loading model from cuda:1 to {self.device}")
-            state_dict = torch.load(path, map_location="cuda:1")
-        else:
-            state_dict = torch.load(path, map_location=self.device)
+        
+        state_dict = torch.load(path, map_location=self.device)
         self.model.load_state_dict(state_dict, strict=False)
         self.model.to(self.device)
         self.model.eval()
