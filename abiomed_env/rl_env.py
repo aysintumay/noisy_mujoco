@@ -12,7 +12,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from model import WorldModel
 from reward_func import compute_reward_smooth,compute_shaped_reward
-import config as config
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+import noisy_mujoco.abiomed_env.config as config
 
 
 class AbiomedRLEnv(gym.Env):
@@ -40,6 +41,10 @@ class AbiomedRLEnv(gym.Env):
     
         if seed is not None:
             self.seed(seed)
+
+        self.gamma1 = gamma1
+        self.gamma2 = gamma2
+        self.gamma3 = gamma3
 
         self.gamma1 = gamma1
         self.gamma2 = gamma2
@@ -81,10 +86,12 @@ class AbiomedRLEnv(gym.Env):
         if init_data_size == 0:
             raise ValueError("No data available")
         
+        
         if idx== None:
             init_data_index = random.randint(0, init_data_size - self.max_steps)
         else:
             init_data_index = idx
+
 
         if init_data_index < train_length:
             if init_data_index + self.max_steps> train_length:
@@ -221,6 +228,43 @@ class AbiomedRLEnv(gym.Env):
             torch.manual_seed(seed)
             if torch.cuda.is_available():
                 torch.cuda.manual_seed(seed)
+    
+   
+class AbiomedRLEnvNoisy(AbiomedRLEnv):
+    """RL Environment for Abiomed World Model with noise"""
+    
+    def __init__(self, *args, noise_rate: float = 0.0, 
+                              noise_scale: float = 0.00,
+                              **kwargs):
+
+        super().__init__(*args, **kwargs)
+        self.noise_rate = noise_rate
+        self.noise_scale = noise_scale
+        print(f"Noise rate: {self.noise_rate}, Noise scale: {self.noise_scale}")
+    
+    def add_noise(self, observation: np.ndarray) -> np.ndarray:
+        """Add noise to the observation"""
+        # do not add noise to the p-levels
+        noise = np.random.normal(0, self.noise_scale, observation.shape)
+        # p level is last column of the observation
+        num_features = self.world_model.num_features
+        for i in range(self.world_model.forecast_horizon):
+            noise[i * num_features + num_features - 1] = 0
+        observation = observation + noise
+        return observation
+
+    def reset(self, *args, **kwargs):
+        observation, info = super().reset(*args, **kwargs)
+        if np.random.uniform(0, 1) < self.noise_rate:
+            observation = self.add_noise(observation)
+        return observation, info
+    
+    def step(self, action):
+        observation, reward, terminated, truncated, info = super().step(action)
+        if np.random.uniform(0, 1) < self.noise_rate:
+            observation = self.add_noise(observation)
+        return observation, reward, terminated, truncated, info
+    
 
 
 class AbiomedRLEnvFactory:
@@ -238,6 +282,8 @@ class AbiomedRLEnvFactory:
         action_space_type: str = "discrete",
         reward_type: str = "smooth",
         normalize_rewards: bool = True,
+        noise_rate: float = 0.0,
+        noise_scale: float = 0.00,
         seed: Optional[int] = None,
         device: Optional[str] = None
     ) -> AbiomedRLEnv:
@@ -255,12 +301,31 @@ class AbiomedRLEnvFactory:
 
         world_model.load_model(model_path)
         print(f"Model loaded from {model_path}")
-        
         if data_path is None:
             data_path = f"/abiomed/downsampled/{model_name}.pkl"
-        
         world_model.load_data(data_path)
         print(f"Data loaded from {data_path}")
+
+        if noise_rate > 0:
+            env = AbiomedRLEnvNoisy(
+                world_model=world_model,
+                max_steps=max_steps,
+                action_space_type=action_space_type,
+                reward_type=reward_type,
+                normalize_rewards=normalize_rewards,
+                seed=seed,
+                noise_rate=noise_rate,
+                noise_scale=noise_scale
+            )
+        else:
+            env = AbiomedRLEnv(
+                world_model=world_model,
+                max_steps=max_steps,
+                action_space_type=action_space_type,
+                reward_type=reward_type,
+                normalize_rewards=normalize_rewards,
+                seed=seed
+            )
         env = AbiomedRLEnv(
             world_model=world_model,
             max_steps=max_steps,

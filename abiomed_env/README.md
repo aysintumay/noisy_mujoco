@@ -23,6 +23,24 @@ The RL environment provides a standard gym-like interface for reinforcement lear
     ['PumpPressure', 'PumpSpeed', 'PumpFLow', 'LVP', 'LVEDP', 'SYSTOLIC','DIASTOLIC','PULSAT','PumpCurrent','Heart Rate', 'ESE_lv','Pump Level']
 ```
 - **Action Space**: Discrete (9 actions, p-levels 2-10) or Continuous (*normalized* p-levels)
+
+To use reward shaping; set gamma1, gamma2 or gamma3 a nonzero value. Example environment call with reward shaping turned on:
+```
+env = AbiomedRLEnvFactory.create_env(
+									model_name="10min_1hr_all_data",
+									model_path=None,
+									data_path=None,
+									max_steps=6,
+									gamma1=0.1,
+									gamma2=0.1,
+									gamma3=0.1,
+									action_space_type="continuous",
+									reward_type="smooth",
+									normalize_rewards=True,
+									seed=42,
+									)
+```
+
 - **Reward Function**: Smooth reward function currently only evaluating MAP, heart rate, pulsatility.
 
 To enable reward shaping: Set gamma1, gamma2, or gamma3 with a nonzero value.
@@ -50,6 +68,7 @@ The `AbiomedRLEnvFactory` provides a convenient way to create environments with 
 - Action space type (discrete/continuous)
 - Reward function type (smooth/discrete)
 - Episode length and reward normalization
+- Noisy observation (use `noise_rate` $\in [0,1]$ and `noise_scale` for Gaussian noise.)
 
 ## Installation
 
@@ -111,3 +130,14 @@ env = AbiomedRLEnvFactory.create_env()
 model = PPO("MlpPolicy", env, verbose=1)
 model.learn(total_timesteps=10000)
 ```
+
+### Create offline datasets
+
+To create offline datasets in D4RL format, simply run
+
+`python sample_offline_dataset.py`
+
+to sample noisy observation, run
+
+`python sample_offline_dataset.py --noise_rate 0.8 --noise_scale 0.2 --num_episodes 100000`
+

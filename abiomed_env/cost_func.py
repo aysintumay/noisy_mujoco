@@ -15,7 +15,6 @@ def compute_acp_cost(actions, states):
         float: The cumulative action change penalty for the episode
     """
     reshaped_states = states.reshape(-1, 6, 12)
-    print(reshaped_states.shape, type(reshaped_states)) if reshaped_states.shape[0]>1 else None
     first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     acp = 0.0
@@ -485,7 +484,7 @@ def weaning_score_model(world_model, states, actions):
             current_action = all_actions[t]
             previous_action = all_actions[t-1]
             increase_diff = current_action - previous_action
-            if (previous_action-current_action) == 1:
+            if ((previous_action-current_action) == 1) or ((previous_action-current_action) == 2) :
                 score += 1.0
             
             elif increase_diff > 0:
@@ -551,3 +550,206 @@ def aggregate_air_model(world_model,states, actions):
     if opportunities == 0:
         return 1.0
     return correct_intensifications / opportunities
+
+#if the slope is lower than a safe value, we want action
+arbitrary_threshold = -0
+def compute_air_map_gradient_threshold(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
+
+    air_value = 0.0
+    x_vals = np.arange(world_model.forecast_horizon)
+    opportunities = 0
+    correct_intensifications = 0
+    for t in range(1, len(actions)):
+        slope = np.polyfit(x_vals, map_values[t-1], 1)[0]
+        if slope < arbitrary_threshold:
+            opportunities += 1
+            if actions[t] > actions[t - 1]:
+                correct_intensifications += 1
+    if opportunities == 0:
+        return 1.0
+    return correct_intensifications / opportunities
+        
+def compute_air_hr_gradient_threshold(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
+
+    air_value = 0.0
+    x_vals = np.arange(world_model.forecast_horizon)
+    opportunities = 0
+    correct_intensifications = 0
+    for t in range(1, len(actions)):
+        slope = np.polyfit(x_vals, hr_values[t-1], 1)[0]
+        if slope < arbitrary_threshold:
+            opportunities += 1
+            if actions[t] > actions[t - 1]:
+                correct_intensifications += 1
+    if opportunities == 0:
+        return 1.0
+    return correct_intensifications / opportunities
+        
+def compute_air_pulsat_gradient_threshold(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+
+    air_value = 0.0
+    x_vals = np.arange(world_model.forecast_horizon)
+    opportunities = 0
+    correct_intensifications = 0
+    for t in range(1, len(actions)):
+        slope = np.polyfit(x_vals, pulsat_values[t-1], 1)[0]
+        if slope < arbitrary_threshold:
+            opportunities += 1
+            if actions[t] > actions[t - 1]:
+                correct_intensifications += 1
+    if opportunities == 0:
+        return 1.0
+    return correct_intensifications / opportunities
+
+#if all slopes are downwards (rather than the mean slope (may need different thresholds))
+def compute_air_aggregate_gradient_threshold(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
+    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
+    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+
+    air_value = 0.0
+    x_vals = np.arange(world_model.forecast_horizon)
+    opportunities = 0
+    correct_intensifications = 0
+    for t in range(1, len(actions)):
+        slope1 = np.polyfit(x_vals, map_values[t-1], 1)[0]
+        slope2 = np.polyfit(x_vals, hr_values[t-1], 1)[0]
+        slope3 = np.polyfit(x_vals, pulsat_values[t-1], 1)[0]
+        if (slope1 < arbitrary_threshold) and (slope2 < arbitrary_threshold) and (slope3 < arbitrary_threshold):
+            opportunities += 1
+            if all_actions[t] > all_actions[t - 1]:
+                correct_intensifications += 1
+    if opportunities == 0:
+        return 1.0
+    return correct_intensifications / opportunities
+
+#below functions multiply action change by gradient
+def compute_map_air_gradient(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
+    air_value = 0
+    x_vals = np.arange(world_model.forecast_horizon)
+    for t in range(1, len(map_values)):
+        slope = (np.polyfit(x_vals, map_values[t-1], 1))[0]
+        #slope times change in action
+        air_value += max(0,(-slope))*max(0,(actions[t]-actions[t-1]))
+    return air_value
+
+def compute_hr_air_gradient(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
+    air_value = 0
+    x_vals = np.arange(world_model.forecast_horizon)
+    for t in range(1, len(hr_values)):
+        slope = (np.polyfit(x_vals, hr_values[t-1], 1))[0]
+        air_value += max(0,(-slope))*max(0,(actions[t]-actions[t-1]))
+    return air_value
+def compute_pulsat_air_gradient(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+    air_value = 0
+    x_vals = np.arange(world_model.forecast_horizon)
+    for t in range(1, len(pulsat_values)):
+        slope = (np.polyfit(x_vals, pulsat_values[t-1], 1))[0]
+        air_value += max(0,(-slope))*max(0,(actions[t]-actions[t-1]))
+    return air_value
+#fix this to get the mean slope
+def compute_aggregate_air_gradient(world_model, states, actions):
+    reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
+    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
+    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
+    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+
+    air_value = 0
+    x_vals = np.arange(world_model.forecast_horizon)
+    for t in range(1, len(actions)):
+        slope_map = np.polyfit(x_vals, map_values[t-1], 1)[0]
+        slope_hr = np.polyfit(x_vals, hr_values[t-1], 1)[0]
+        slope_pulsat = np.polyfit(x_vals, pulsat_values[t-1], 1)[0]
+        mean_slope = (slope_map + slope_hr + slope_pulsat) / 3.0
+        action_change = actions[t] - actions[t-1]
+        air_value += max(0, -mean_slope) * max(0, action_change)
+        
+    return air_value
+
+FORECAST_HORIZON = 6
+    #same thing for the physician notebook 
+def compute_air_gradient_threshold_physician(states, actions):
+    x_vals = np.arange(FORECAST_HORIZON)
+    opportunities, correct_intensifications = 0, 0
+    loop_limit = len(states) - FORECAST_HORIZON + 1
+    for t in range(1, loop_limit):
+        window = states[t-1 : t-1 + FORECAST_HORIZON]
+        slope = np.polyfit(x_vals, window, 1)[0]
+        if slope < arbitrary_threshold:
+            opportunities += 1
+            if actions[t] > actions[t-1]:
+                correct_intensifications += 1
+    return correct_intensifications / opportunities if opportunities > 0 else 1.0
+
+
+#if all slopes are downwards (rather than the mean slope (may need different thresholds))
+def compute_air_aggregate_gradient_threshold_physician(states, actions):
+    x_vals = np.arange(FORECAST_HORIZON)
+    opportunities = 0
+    correct_intensifications = 0
+    loop_limit = len(states) - FORECAST_HORIZON + 1
+
+    for t in range(1, loop_limit):
+        state_window = states[t-1 : t-1 + FORECAST_HORIZON]
+        map_values = state_window[:, MAP_IDX]
+        hr_values = state_window[:, HR_IDX]
+        pulsat_values = state_window[:, PULSATILITY_IDX]
+        slope1 = np.polyfit(x_vals, map_values, 1)[0]
+        slope2 = np.polyfit(x_vals, hr_values, 1)[0]
+        slope3 = np.polyfit(x_vals, pulsat_values, 1)[0]
+
+        if (slope1 < arbitrary_threshold) and (slope2 < arbitrary_threshold) and (slope3 < arbitrary_threshold):
+            opportunities += 1
+            if actions[t] > actions[t-1]:
+                correct_intensifications += 1
+
+    if opportunities == 0:
+        return 1.0
+        
+    return correct_intensifications / opportunities
+
+#below functions multiply action change by gradient
+def compute_air_gradient_physician(states, actions):
+    air_value = 0.0
+    x_vals = np.arange(FORECAST_HORIZON)
+    loop_limit = len(states) - FORECAST_HORIZON + 1
+    for t in range(1, loop_limit):
+        window = states[t-1 : t-1 + FORECAST_HORIZON]
+        slope = np.polyfit(x_vals, window, 1)[0]
+        action_change = actions[t] - actions[t-1]
+        air_value += max(0, -slope) * max(0, action_change)
+    return air_value
+
+
+
+def compute_aggregate_air_gradient_physician(states, actions):
+    air_value = 0.0
+    x_vals = np.arange(FORECAST_HORIZON)
+    loop_limit = len(states) - FORECAST_HORIZON + 1
+
+    for t in range(1, loop_limit):
+        state_window = states[t-1 : t-1 + FORECAST_HORIZON]
+        map_values = state_window[:, MAP_IDX]
+        hr_values = state_window[:, HR_IDX]
+        pulsat_values = state_window[:, PULSATILITY_IDX]
+        slope_map = np.polyfit(x_vals, map_values, 1)[0]
+        slope_hr = np.polyfit(x_vals, hr_values, 1)[0]
+        slope_pulsat = np.polyfit(x_vals, pulsat_values, 1)[0]
+        mean_slope = (slope_map + slope_hr + slope_pulsat) / 3.0
+        action_change = actions[t] - actions[t-1]
+        air_value += max(0, -mean_slope) * max(0, action_change)
+        
+    return air_value

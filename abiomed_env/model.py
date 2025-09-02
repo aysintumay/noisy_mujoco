@@ -4,7 +4,11 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 import copy
 
 class TimeSeriesDataset(Dataset):
@@ -408,10 +412,10 @@ class WorldModel(nn.Module):
     def forward(self, src, pl):
         return self.model(src, pl)
 
-    def load_data(self, path):
+    def load_data(self, path): 
+        
         with open(path, "rb") as f:
             data = pickle.load(f)
-
         mean = data["mean"]
         std = data["std"]
         self.mean, self.std = mean, std
@@ -439,7 +443,7 @@ class WorldModel(nn.Module):
             len(self.data_val),
             "\n test: ",
             len(self.data_test),
-        )
+        )   
 
     def train_model(self, num_epochs=50, batch_size=64, learning_rate=0.001, loss_fn = 'mse'):
         self.model.train()
@@ -725,6 +729,9 @@ class WorldModel(nn.Module):
 
 
     def plot_output(self, batch_data, pred, need_unnorm=True):
+        if not MATPLOTLIB_AVAILABLE:
+            print("Warning: matplotlib not available. Plotting skipped.")
+            return
         
         # unnorm x
         x_unnorm = batch_data[0][0].cpu() * self.std[self.columns] + self.mean[self.columns]

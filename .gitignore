@@ -3,6 +3,10 @@ abiomed_env/sb3_log/*
 abiomed_env/results/*
 sb3_log/
 abiomed_env/models/*
+.claude
+CLAUDE.md
+abiomed_env/data_proc/wandb/
+*/wandb/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
