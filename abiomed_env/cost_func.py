@@ -347,6 +347,36 @@ def is_stable(states):
         return False
     return True
 
+arbitrary_threshold = -1.0
+def is_stable_gradient(states):
+    """
+    Checks if a 1 hour window which is 6 steps is stable using the definition that 
+    MAP, HR, Pulsatility gradients are not below a threshold
+
+    Args:
+        states (list[list[float]]): A list with exactly 6 state
+            vectors with the different features
+
+    Returns:
+        bool: Returns True if the hour is stable and False if not
+    """
+    states_np = np.array(states)
+    x_vals = np.arange(len(states_np))
+
+    map_values = states_np[:, MAP_IDX]
+    hr_values = states_np[:, HR_IDX]
+    pulsatility_values = states_np[:, PULSATILITY_IDX]
+
+    map_slope = np.polyfit(x_vals, map_values, 1)[0]
+    hr_slope = np.polyfit(x_vals, hr_values, 1)[0]
+    pulsatility_slope = np.polyfit(x_vals, pulsatility_values, 1)[0]
+    is_map_safe = map_slope >= arbitrary_threshold
+    is_hr_safe = hr_slope >= arbitrary_threshold
+    is_pulsatility_safe = pulsatility_slope >= arbitrary_threshold
+
+    return is_map_safe and is_hr_safe and is_pulsatility_safe
+
+
 def unstable_percentage(flattened_states):
     """
     Calculates the percentage of total timesteps that are in an unstable state, 
@@ -444,7 +474,7 @@ def weaning_score_physician(flattened_states, actions):
     score = 0.0
     denom = 0.0
     for t in range(1, len(all_actions)):
-        if is_stable(flattened_states[t-1]):
+        if is_stable_gradient(flattened_states[t-1]):
             denom += 1.0
             current_action = all_actions[t]
             previous_action = all_actions[t-1]
@@ -479,7 +509,7 @@ def weaning_score_model(world_model, states, actions):
     score = 0.0
     denom = 0.0
     for t in range(1, len(all_actions)):
-        if is_stable(unnormalized_states[t-1]):
+        if is_stable_gradient(unnormalized_states[t-1]):
             denom += 1.0
             current_action = all_actions[t]
             previous_action = all_actions[t-1]
@@ -551,11 +581,23 @@ def aggregate_air_model(world_model,states, actions):
         return 1.0
     return correct_intensifications / opportunities
 
-#if the slope is lower than a safe value, we want action
-arbitrary_threshold = -0
 def compute_air_map_gradient_threshold(world_model, states, actions):
+    """Calculates physician AIR score for MAP.
+
+    The score considers cases when the metric is below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The AIR score for MAP for the length of states, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    map_values = unnormalized_states[:, :, 0]
 
     air_value = 0.0
     x_vals = np.arange(world_model.forecast_horizon)
@@ -572,8 +614,22 @@ def compute_air_map_gradient_threshold(world_model, states, actions):
     return correct_intensifications / opportunities
         
 def compute_air_hr_gradient_threshold(world_model, states, actions):
+    """Calculates physician AIR score for HR.
+
+    The score considers cases when the metric is below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The AIR score for HR for the length of states, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    hr_values = unnormalized_states[:, :, 9]
 
     air_value = 0.0
     x_vals = np.arange(world_model.forecast_horizon)
@@ -590,8 +646,22 @@ def compute_air_hr_gradient_threshold(world_model, states, actions):
     return correct_intensifications / opportunities
         
 def compute_air_pulsat_gradient_threshold(world_model, states, actions):
+    """Calculates physician AIR score for pulsatility.
+
+    The score considers cases when the metric is below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The AIR score for pulsatility for the length of states, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    pulsat_values = unnormalized_states[:, :, 7]
 
     air_value = 0.0
     x_vals = np.arange(world_model.forecast_horizon)
@@ -609,10 +679,24 @@ def compute_air_pulsat_gradient_threshold(world_model, states, actions):
 
 #if all slopes are downwards (rather than the mean slope (may need different thresholds))
 def compute_air_aggregate_gradient_threshold(world_model, states, actions):
+    """Calculates a cumulative aggregate AIR score.
+
+    The score considers cases when all three metrics' gradients are below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The cumulative aggregate AIR score, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
-    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
-    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    map_values = unnormalized_states[:, :, 0]
+    hr_values = unnormalized_states[:, :, 9]
+    pulsat_values = unnormalized_states[:, :, 7]
 
     air_value = 0.0
     x_vals = np.arange(world_model.forecast_horizon)
@@ -624,7 +708,7 @@ def compute_air_aggregate_gradient_threshold(world_model, states, actions):
         slope3 = np.polyfit(x_vals, pulsat_values[t-1], 1)[0]
         if (slope1 < arbitrary_threshold) and (slope2 < arbitrary_threshold) and (slope3 < arbitrary_threshold):
             opportunities += 1
-            if all_actions[t] > all_actions[t - 1]:
+            if actions[t] > actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
         return 1.0
@@ -632,8 +716,21 @@ def compute_air_aggregate_gradient_threshold(world_model, states, actions):
 
 #below functions multiply action change by gradient
 def compute_map_air_gradient(world_model, states, actions):
+    """Calculates an AIR score for MAP.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken.
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The AIR score for MAP for the length of states, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    map_values = unnormalized_states[:, :, 0]
     air_value = 0
     x_vals = np.arange(world_model.forecast_horizon)
     for t in range(1, len(map_values)):
@@ -643,29 +740,70 @@ def compute_map_air_gradient(world_model, states, actions):
     return air_value
 
 def compute_hr_air_gradient(world_model, states, actions):
+    """Calculates an AIR score for HR.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken.
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The AIR score for HR for the length of states, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    hr_values = unnormalized_states[:, :, 9]
     air_value = 0
     x_vals = np.arange(world_model.forecast_horizon)
     for t in range(1, len(hr_values)):
         slope = (np.polyfit(x_vals, hr_values[t-1], 1))[0]
         air_value += max(0,(-slope))*max(0,(actions[t]-actions[t-1]))
     return air_value
+
 def compute_pulsat_air_gradient(world_model, states, actions):
+    """Calculates an AIR score for pulsatility.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken.
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The AIR score for pulsatility for the length of states, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    pulsat_values = unnormalized_states[:, :, 7]
     air_value = 0
     x_vals = np.arange(world_model.forecast_horizon)
     for t in range(1, len(pulsat_values)):
         slope = (np.polyfit(x_vals, pulsat_values[t-1], 1))[0]
         air_value += max(0,(-slope))*max(0,(actions[t]-actions[t-1]))
     return air_value
-#fix this to get the mean slope
+
 def compute_aggregate_air_gradient(world_model, states, actions):
+    """Calculates a cumulative aggregate AIR score.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken. The gradient is determined
+    as the mean of MAP, HR, and Pulsatility gradients
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The cumulative aggregate AIR score, which is a float
+    """
     reshaped_states = states.reshape(len(actions), world_model.forecast_horizon, -1)
-    map_values = world_model.unnorm_state_col(col_idx=0, state_vectors=reshaped_states)
-    hr_values = world_model.unnorm_state_col(col_idx=9, state_vectors=reshaped_states)
-    pulsat_values = world_model.unnorm_state_col(col_idx=7, state_vectors=reshaped_states)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    map_values = unnormalized_states[:, :, 0]
+    hr_values = unnormalized_states[:, :, 9]
+    pulsat_values = unnormalized_states[:, :, 7]
 
     air_value = 0
     x_vals = np.arange(world_model.forecast_horizon)
@@ -680,14 +818,79 @@ def compute_aggregate_air_gradient(world_model, states, actions):
     return air_value
 
 FORECAST_HORIZON = 6
-    #same thing for the physician notebook 
-def compute_air_gradient_threshold_physician(states, actions):
+
+def compute_map_air_gradient_threshold_physician(states, actions):
+    """Calculates physician AIR score for MAP
+
+    The score considers cases when the metric is below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array
+        actions is a 1D array
+
+    Returns:
+        The AIR score for the metric for the length of states, which is a float
+    """
     x_vals = np.arange(FORECAST_HORIZON)
     opportunities, correct_intensifications = 0, 0
-    loop_limit = len(states) - FORECAST_HORIZON + 1
-    for t in range(1, loop_limit):
-        window = states[t-1 : t-1 + FORECAST_HORIZON]
-        slope = np.polyfit(x_vals, window, 1)[0]
+    for t in range(1, len(actions)):
+        window_states = states[t-1]
+        map_window = window_states[:, MAP_IDX]
+        slope = np.polyfit(x_vals, map_window, 1)[0]
+        if slope < arbitrary_threshold:
+            opportunities += 1
+            if actions[t] > actions[t-1]:
+                correct_intensifications += 1
+    return correct_intensifications / opportunities if opportunities > 0 else 1.0
+
+def compute_hr_air_gradient_threshold_physician(states, actions):
+    """Calculates physician AIR score for HR
+
+    The score considers cases when the metric is below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array
+        actions is a 1D array
+
+    Returns:
+        The AIR score for the metric for the length of states, which is a float
+    """
+    x_vals = np.arange(FORECAST_HORIZON)
+    opportunities, correct_intensifications = 0, 0
+    for t in range(1, len(actions)):
+        window_states = states[t-1]
+        hr_window = window_states[:, HR_IDX]
+        slope = np.polyfit(x_vals, hr_window, 1)[0]
+        if slope < arbitrary_threshold:
+            opportunities += 1
+            if actions[t] > actions[t-1]:
+                correct_intensifications += 1
+    return correct_intensifications / opportunities if opportunities > 0 else 1.0
+
+def compute_pulsat_air_gradient_threshold_physician(states, actions):
+    """Calculates physician AIR score for Pulsatility
+
+    The score considers cases when the metric is below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array
+        actions is a 1D array
+
+    Returns:
+        The AIR score for the metric for the length of states, which is a float
+    """
+    x_vals = np.arange(FORECAST_HORIZON)
+    opportunities, correct_intensifications = 0, 0
+    for t in range(1, len(actions)):
+        window_states = states[t-1] # Correctly select the (t-1)th hour
+        pulsat_window = window_states[:, PULSATILITY_IDX]
+        slope = np.polyfit(x_vals, pulsat_window, 1)[0]
         if slope < arbitrary_threshold:
             opportunities += 1
             if actions[t] > actions[t-1]:
@@ -697,13 +900,24 @@ def compute_air_gradient_threshold_physician(states, actions):
 
 #if all slopes are downwards (rather than the mean slope (may need different thresholds))
 def compute_air_aggregate_gradient_threshold_physician(states, actions):
+    """Calculates a cumulative aggregate physician AIR score.
+
+    The score considers cases when all three metrics' gradients are below a 
+    threshold as an opportunity and a subsequent increase
+    in action as a correct intensification
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The cumulative aggregate AIR score, which is a float
+    """
     x_vals = np.arange(FORECAST_HORIZON)
     opportunities = 0
     correct_intensifications = 0
-    loop_limit = len(states) - FORECAST_HORIZON + 1
-
-    for t in range(1, loop_limit):
-        state_window = states[t-1 : t-1 + FORECAST_HORIZON]
+    for t in range(1, len(actions)):
+        state_window = states[t-1]
         map_values = state_window[:, MAP_IDX]
         hr_values = state_window[:, HR_IDX]
         pulsat_values = state_window[:, PULSATILITY_IDX]
@@ -715,33 +929,97 @@ def compute_air_aggregate_gradient_threshold_physician(states, actions):
             opportunities += 1
             if actions[t] > actions[t-1]:
                 correct_intensifications += 1
+    return correct_intensifications / opportunities if opportunities > 0 else 1.0
 
-    if opportunities == 0:
-        return 1.0
-        
-    return correct_intensifications / opportunities
+def compute_map_air_gradient_physician(states, actions):
+    """Calculates a physician AIR score for MAP.
 
-#below functions multiply action change by gradient
-def compute_air_gradient_physician(states, actions):
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken.
+
+    Args:
+        states is a 2D array
+        actions is a 1D array
+
+    Returns:
+        The AIR score for the metric for the length of states, which is a float
+    """
     air_value = 0.0
     x_vals = np.arange(FORECAST_HORIZON)
-    loop_limit = len(states) - FORECAST_HORIZON + 1
-    for t in range(1, loop_limit):
-        window = states[t-1 : t-1 + FORECAST_HORIZON]
-        slope = np.polyfit(x_vals, window, 1)[0]
+    for t in range(1, len(actions)):
+        window_states = states[t-1]
+        map_values = window_states[:, MAP_IDX]
+        slope = np.polyfit(x_vals, map_values, 1)[0]
         action_change = actions[t] - actions[t-1]
+        air_value += max(0, -slope) * max(0, action_change)
+    return air_value
+
+def compute_hr_air_gradient_physician(states, actions):
+    """Calculates a physician AIR score for HR.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken.
+
+    Args:
+        states is a 2D array
+        actions is a 1D array
+
+    Returns:
+        The AIR score for the metric for the length of states, which is a float
+    """
+    air_value = 0.0
+    x_vals = np.arange(FORECAST_HORIZON)
+    for t in range(1, len(actions)):
+        window_states = states[t-1]
+        hr_values = window_states[:, HR_IDX]
+        slope = np.polyfit(x_vals, hr_values, 1)[0]
+        action_change = actions[t] - actions[t-1]
+        air_value += max(0, -slope) * max(0, action_change)
+    return air_value
+
+def compute_pulsat_air_gradient_physician(states, actions):
+    """Calculates a physician AIR score for pulsatility.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken.
+
+    Args:
+        states is a 2D array
+        actions is a 1D array
+
+    Returns:
+        The AIR score for the metric for the length of states, which is a float
+    """
+    air_value = 0.0
+    x_vals = np.arange(FORECAST_HORIZON)
+    for t in range(1, len(actions)):
+        window_states = states[t-1]
+        pulsat_values = window_states[:, PULSATILITY_IDX]
+        slope = np.polyfit(x_vals, pulsat_values, 1)[0]
+        action_change = actions[t] - actions[t-1] 
         air_value += max(0, -slope) * max(0, action_change)
     return air_value
 
 
 
 def compute_aggregate_air_gradient_physician(states, actions):
+    """Calculates a cumulative aggregate physician AIR score.
+
+    The score is the product of the magnitude of negative gradients 
+    within an hour and positive actions taken. The gradient is determined
+    as the mean of MAP, HR, and Pulsatility gradients
+
+    Args:
+        states is a 2D array with all of the physiological metrics
+        actions is a 1D array
+
+    Returns:
+        The cumulative aggregate AIR score, which is a float
+    """
     air_value = 0.0
     x_vals = np.arange(FORECAST_HORIZON)
-    loop_limit = len(states) - FORECAST_HORIZON + 1
-
-    for t in range(1, loop_limit):
-        state_window = states[t-1 : t-1 + FORECAST_HORIZON]
+    for t in range(1, len(actions)):
+        state_window = states[t-1]
         map_values = state_window[:, MAP_IDX]
         hr_values = state_window[:, HR_IDX]
         pulsat_values = state_window[:, PULSATILITY_IDX]
@@ -751,5 +1029,4 @@ def compute_aggregate_air_gradient_physician(states, actions):
         mean_slope = (slope_map + slope_hr + slope_pulsat) / 3.0
         action_change = actions[t] - actions[t-1]
         air_value += max(0, -mean_slope) * max(0, action_change)
-        
     return air_value
