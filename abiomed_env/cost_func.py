@@ -15,7 +15,7 @@ def compute_acp_cost(actions, states):
         float: The cumulative action change penalty for the episode
     """
     reshaped_states = states.reshape(-1, 6, 12)
-    first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(reshaped_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     acp = 0.0
     for i in range(1, len(all_actions)):
@@ -38,7 +38,7 @@ def compute_acp_cost_model(world_model, actions, states):
     """
     reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
     unnormalized_states = world_model.unnorm_output(reshaped_states)
-    first_action_unnorm = np.array(np.bincount(np.array(unnormalized_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(unnormalized_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     acp = 0.0
     for i in range(1, len(all_actions)):
@@ -518,7 +518,7 @@ def weaning_score_model(world_model, states, actions):
             previous_action = all_actions[t-1]
             increase_diff = current_action - previous_action
             if ((previous_action-current_action) == 1) or ((previous_action-current_action) == 2) :
-                score += 1.0
+                score += (previous_action-current_action)
             
             elif increase_diff > 0:
                 score -= 1
@@ -543,7 +543,7 @@ def aggregate_air_physician(states, actions):
     #     hourly_states_list.append(states[i : i+6])
     #     hourly_actions.append(actions[i : i+6])
     reshaped_states = states.reshape(-1, 6, 12)
-    first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(reshaped_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     opportunities = 0
     correct_intensifications = 0
@@ -571,7 +571,7 @@ def aggregate_air_model(world_model,states, actions):
     """
     reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
     unnormalized_states = world_model.unnorm_output(reshaped_states)
-    first_action_unnorm = np.array(np.bincount(np.array(unnormalized_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(unnormalized_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     opportunities = 0
     correct_intensifications = 0
