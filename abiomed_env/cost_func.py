@@ -134,7 +134,7 @@ def compute_map_model_air(world_model,states, actions):
                 correct_intensifications += 1
 
     if opportunities == 0:
-        return 0.0
+        return 1.0
         
     return correct_intensifications / opportunities
 
@@ -172,7 +172,7 @@ def compute_map_physician_air(states, actions):
                 correct_intensifications += 1
 
     if opportunities == 0:
-        return 0.0
+        return 1.0
         
     return correct_intensifications / opportunities
 
@@ -208,7 +208,7 @@ def compute_hr_model_air(world_model, states, actions):
 
 
     if opportunities == 0:
-        return 0.0
+        return 1.0
         
     return correct_intensifications / opportunities
 
@@ -249,7 +249,7 @@ def compute_hr_physician_air(states, actions):
         #         correct_intensifications += 1
 
     if opportunities == 0:
-        return 0.0
+        return 1.0
         
     return correct_intensifications / opportunities
 
@@ -283,7 +283,7 @@ def compute_pulsatility_physician_air(states, actions):
             if sampled_actions[t] > sampled_actions[t - 1]:
                 correct_intensifications += 1
     if opportunities == 0:
-        return 0.0
+        return 1.0
     return correct_intensifications / opportunities
 
 def compute_pulsatility_model_air(world_model, states, actions):
@@ -314,7 +314,7 @@ def compute_pulsatility_model_air(world_model, states, actions):
                 correct_intensifications += 1
 
     if opportunities == 0:
-        return 0.0
+        return 1.0
         
     return correct_intensifications / opportunities
 #indices from the readme 
@@ -347,7 +347,7 @@ def is_stable(states):
         return False
     return True
 
-arbitrary_threshold = -1.0
+arbitrary_threshold = -0.25
 def is_stable_gradient(states):
     """
     Checks if a 1 hour window which is 6 steps is stable using the definition that 
@@ -370,11 +370,13 @@ def is_stable_gradient(states):
     map_slope = np.polyfit(x_vals, map_values, 1)[0]
     hr_slope = np.polyfit(x_vals, hr_values, 1)[0]
     pulsatility_slope = np.polyfit(x_vals, pulsatility_values, 1)[0]
-    is_map_safe = map_slope >= arbitrary_threshold
-    is_hr_safe = hr_slope >= arbitrary_threshold
-    is_pulsatility_safe = pulsatility_slope >= arbitrary_threshold
+    is_map_unstable = abs(map_slope) >= -arbitrary_threshold
+    is_hr_unstable = abs(hr_slope) >= -arbitrary_threshold
+    is_pulsatility_unstable = abs(pulsatility_slope) >= -arbitrary_threshold
 
-    return is_map_safe and is_hr_safe and is_pulsatility_safe
+    if is_map_unstable or is_hr_unstable or is_pulsatility_unstable:
+        return False
+    return True
 
 
 def unstable_percentage(flattened_states):
@@ -469,7 +471,7 @@ def weaning_score_physician(flattened_states, actions):
     #     hourly_states_list.append(hour_chunk)
     #     hourly_actions.append(actions[i+5])
     reshaped_states = flattened_states.reshape(-1, 6, 12)
-    first_action_unnorm = np.array(np.bincount(np.array(reshaped_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(reshaped_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     score = 0.0
     denom = 0.0
@@ -487,6 +489,7 @@ def weaning_score_physician(flattened_states, actions):
 
     return score / denom if denom != 0 else 0.0
 
+#change is_stable to be within range of the threshold += T
 def weaning_score_model(world_model, states, actions):
     """
     Calculates a weaning score from hourly states and actions. Lowering p level by one is proper 
@@ -504,7 +507,7 @@ def weaning_score_model(world_model, states, actions):
 
     reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
     unnormalized_states = world_model.unnorm_output(reshaped_states)
-    first_action_unnorm = np.array(np.bincount(np.array(unnormalized_states[0,:,-1]).astype(int)).argmax()).reshape(-1)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(unnormalized_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
     all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
     score = 0.0
     denom = 0.0
@@ -924,7 +927,7 @@ def compute_air_aggregate_gradient_threshold_physician(states, actions):
         slope1 = np.polyfit(x_vals, map_values, 1)[0]
         slope2 = np.polyfit(x_vals, hr_values, 1)[0]
         slope3 = np.polyfit(x_vals, pulsat_values, 1)[0]
-
+        
         if (slope1 < arbitrary_threshold) and (slope2 < arbitrary_threshold) and (slope3 < arbitrary_threshold):
             opportunities += 1
             if actions[t] > actions[t-1]:
