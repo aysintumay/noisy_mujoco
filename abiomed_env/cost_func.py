@@ -476,7 +476,7 @@ def weaning_score_physician(flattened_states, actions):
     score = 0.0
     denom = 0.0
     for t in range(1, len(all_actions)):
-        if is_stable_gradient(flattened_states[t-1]):
+        if is_stable(flattened_states[t-1]):
             denom += 1.0
             current_action = all_actions[t]
             previous_action = all_actions[t-1]
@@ -491,6 +491,75 @@ def weaning_score_physician(flattened_states, actions):
 
 #change is_stable to be within range of the threshold += T
 def weaning_score_model(world_model, states, actions):
+    """
+    Calculates a weaning score from hourly states and actions. Lowering p level by one is proper 
+    weaning and increasing while stable is improper (so it is proportionally penalized)
+
+    Args:
+        flattened_states (list[list[float]]): A 2D array of unnormalized
+            state vectors for an entire time series
+        action (list[float]): A list of p levels for each state, unnormalized.
+
+    Returns:
+        float: The average weaning score per stable hour. A higher score
+               means better weaning decisions, but we expect lower values.
+    """
+
+    reshaped_states = states.reshape(-1, world_model.forecast_horizon, 12)
+    unnormalized_states = world_model.unnorm_output(reshaped_states)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(unnormalized_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
+    score = 0.0
+    denom = 0.0
+    for t in range(1, len(all_actions)):
+        if is_stable(unnormalized_states[t-1]):
+            denom += 1.0
+            current_action = all_actions[t]
+            previous_action = all_actions[t-1]
+            increase_diff = current_action - previous_action
+            if ((previous_action-current_action) == 1) or ((previous_action-current_action) == 2) :
+                score += (previous_action-current_action)
+            
+            elif increase_diff > 0:
+                score -= 1
+
+    return score / denom if denom != 0 else 0.0
+
+def weaning_score_physician_gradient(flattened_states, actions):
+    """
+    Calculates a weaning score from hourly states and actions. Lowering p level by one is proper 
+    weaning and increasing while stable is improper (so it is proportionally penalized)
+
+    Args:
+        flattened_states (list[list[float]]): A 2D array of unnormalized
+            state vectors for an entire time series
+        actions (list[float]): A list of p levels for each state.
+
+    Returns:
+        float: The average weaning score per stable hour. A higher score
+               means better weaning decisions, but we expect lower values.
+    """
+    reshaped_states = flattened_states.reshape(-1, 6, 12)
+    first_action_unnorm = np.array(np.bincount(np.rint(np.array(reshaped_states[0,:,-1])).astype(int)).argmax()).reshape(-1)
+    all_actions = np.concatenate([first_action_unnorm, np.asarray(actions, dtype=float)])
+    score = 0.0
+    denom = 0.0
+    for t in range(1, len(all_actions)):
+        if is_stable_gradient(flattened_states[t-1]):
+            denom += 1.0
+            current_action = all_actions[t]
+            previous_action = all_actions[t-1]
+            increase_diff = current_action - previous_action
+            if ((previous_action-current_action) == 1) or ((previous_action-current_action) == 2) :
+                score += previous_action-current_action
+            
+            elif increase_diff > 0:
+                score -= 1
+
+    return score / denom if denom != 0 else 0.0
+
+#change is_stable to be within range of the threshold += T
+def weaning_score_model_gradient(world_model, states, actions):
     """
     Calculates a weaning score from hourly states and actions. Lowering p level by one is proper 
     weaning and increasing while stable is improper (so it is proportionally penalized)
